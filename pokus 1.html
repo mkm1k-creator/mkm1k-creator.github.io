@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Můj první web</title>
+</head>
+<body>
+
+    <h1>Ahoj!</h1>
+    <p>Toto je můj první web.</p>
+
+    <button onclick="zmenText()">Klikni na mě</button>
+
+    <p id="text">Tento text se změní.</p>
+
+    <script>
+        function zmenText() {
+            document.getElementById("text").innerHTML = "Funguje to! 🎉"
+        }
+    </script>
+
+</body>
+</html>
