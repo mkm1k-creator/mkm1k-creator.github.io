@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Videa</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0a;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        h1 {
+            font-size: 2rem;
+            letter-spacing: 8px;
+            color: #00ff88;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .podtitulek {
+            color: #555;
+            letter-spacing: 4px;
+            font-size: 0.85rem;
+            margin-bottom: 25px;
+        }
+
+        .vyhledavac {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 40px;
+        }
+
+        .vyhledavac input {
+            background: #111;
+            border: 1px solid #333;
+            border-right: none;
+            color: #fff;
+            padding: 10px 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            width: 300px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .vyhledavac input:focus { border-color: #00ff88; }
+        .vyhledavac input::placeholder { color: #444; }
+
+        .vyhledavac button {
+            background: #00ff88;
+            border: 1px solid #00ff88;
+            color: #0a0a0a;
+            padding: 10px 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .vyhledavac button:hover {
+            background: transparent;
+            color: #00ff88;
+        }
+
+        .mrizka {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+            gap: 25px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .video-karta {
+            border: 1px solid #222;
+            transition: all 0.4s ease;
+            opacity: 0;
+            transform: translateY(40px);
+        }
+
+        .video-karta.viditelna {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .video-karta:hover {
+            border-color: #00ff88;
+            box-shadow: 0 0 25px #00ff8822;
+            transform: translateY(-5px);
+        }
+
+        .video-karta.skryta { display: none; }
+
+        .video-karta iframe {
+            width: 100%;
+            height: 240px;
+            border: none;
+            display: block;
+        }
+
+        .video-info { padding: 15px; }
+
+        .video-nazev {
+            font-size: 0.95rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: #fff;
+            margin-bottom: 6px;
+        }
+
+        .video-popis {
+            font-size: 0.75rem;
+            color: #555;
+            letter-spacing: 2px;
+        }
+
+        .zadne-vysledky {
+            display: none;
+            text-align: center;
+            color: #555;
+            letter-spacing: 4px;
+            margin-top: 60px;
+            font-size: 0.9rem;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 60px;
+        }
+
+        a.zpet {
+            color: #555;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            transition: color 0.2s;
+        }
+
+        a.zpet:hover { color: #00ff88; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>VIDEA</h1>
+        <p class="podtitulek">VOUGHT INTERNATIONAL</p>
+        <div class="vyhledavac">
+            <input type="text" id="hledani" placeholder="HLEDAT VIDEO..." oninput="hledat()">
+            <button onclick="hledat()">🔍</button>
+        </div>
+    </header>
+
+    <div class="mrizka" id="mrizka">
+
+        <div class="video-karta" data-nazev="homelander theme the boys">
+            <iframe src="https://www.youtube.com/embed/a_cOaRNqjvQ"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen></iframe>
+            <div class="video-info">
+                <div class="video-nazev">Homelander Theme | The Boys</div>
+                <div class="video-popis">Skladba od Christophera Lennertzea</div>
+            </div>
+        </div>
+
+        <div class="video-karta" data-nazev="worst job vought international the boys">
+            <iframe src="https://www.youtube.com/embed/TQE4p1D-yAc"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen></iframe>
+            <div class="video-info">
+                <div class="video-nazev">The Worst Job at Vought</div>
+                <div class="video-popis">The Boys | Prime Video</div>
+            </div>
+        </div>
+
+        <div class="video-karta" data-nazev="vought employees working overtime the boys">
+            <iframe src="https://www.youtube.com/embed/v0zdAE-ch5o"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen></iframe>
+            <div class="video-info">
+                <div class="video-nazev">Vought's Employees Working Overtime</div>
+                <div class="video-popis">The Boys | Prime Video</div>
+            </div>
+        </div>
+
+        <div class="video-karta" data-nazev="homelander theme epic version extended the boys">
+            <iframe src="https://www.youtube.com/embed/hnpBQOHD3Zk"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowfullscreen></iframe>
+            <div class="video-info">
+                <div class="video-nazev">Homelander Theme | Epic Extended</div>
+                <div class="video-popis">The Boys — orchestrální verze</div>
+            </div>
+        </div>
+
+    </div>
+
+    <p class="zadne-vysledky" id="zadne">ŽÁDNÁ VIDEA NENALEZENA</p>
+
+    <footer>
+        <a class="zpet" href="index.html">← ZPĚT DO MENU</a>
+    </footer>
+
+    <script>
+        // Animace při scrollování
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry, i) => {
+                if (entry.isIntersecting) {
+                    setTimeout(() => {
+                        entry.target.classList.add('viditelna');
+                    }, i * 150);
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.video-karta').forEach(k => observer.observe(k));
+
+        // Vyhledávač
+        function hledat() {
+            const dotaz = document.getElementById('hledani').value.toLowerCase();
+            const karty = document.querySelectorAll('.video-karta');
+            let pocet = 0;
+
+            karty.forEach(karta => {
+                const nazev = karta.getAttribute('data-nazev');
+                if (nazev.includes(dotaz)) {
+                    karta.classList.remove('skryta');
+                    pocet++;
+                } else {
+                    karta.classList.add('skryta');
+                }
+            });
+
+            document.getElementById('zadne').style.display = pocet === 0 ? 'block' : 'none';
+        }
+    </script>
+
+</body>
+</html>
