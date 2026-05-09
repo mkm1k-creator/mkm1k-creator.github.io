@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Breakout</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+        }
+
+        h1 {
+            font-size: 2rem;
+            letter-spacing: 8px;
+            color: #00ff88;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        #info-bar {
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 20px;
+            letter-spacing: 4px;
+            display: flex;
+            gap: 40px;
+        }
+
+        #platno {
+            border: 2px solid #00ff88;
+            box-shadow: 0 0 30px #00ff8844;
+        }
+
+        #ovladani {
+            margin-top: 20px;
+            color: #555;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+        }
+
+        #overlay {
+            display: flex;
+            position: absolute;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #overlay h2 {
+            font-size: 2rem;
+            letter-spacing: 6px;
+        }
+
+        #overlay p {
+            color: #888;
+            letter-spacing: 3px;
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+            padding: 10px 30px;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            letter-spacing: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #00ff88;
+            color: #0a0a0a;
+        }
+
+        a {
+            color: #555;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            margin-top: 15px;
+            transition: color 0.2s;
+        }
+
+        a:hover { color: #00ff88; }
+    </style>
+</head>
+<body>
+
+    <h1>BREAKOUT</h1>
+    <div id="info-bar">
+        <span>SKÓRE: <span id="skore">0</span></span>
+        <span>ŽIVOTY: <span id="zivoty">3</span></span>
+        <span>LEVEL: <span id="level">1</span></span>
+    </div>
+    <canvas id="platno" width="480" height="380"></canvas>
+    <div id="ovladani">MYŠÍ nebo ŠIPKAMI pro ovládání</div>
+    <a href="index.html">← ZPĚT DO MENU</a>
+
+    <div id="overlay">
+        <h2 id="overlay-titulek" style="color:#00ff88">BREAKOUT</h2>
+        <p id="overlay-text">Znič všechny cihly!</p>
+        <button onclick="start()">HRÁT</button>
+    </div>
+
+    <script>
+        const platno = document.getElementById('platno');
+        const ctx = platno.getContext('2d');
+        const W = platno.width;
+        const H = platno.height;
+
+        const PALKA_S = 80;
+        const PALKA_V = 10;
+        const MIC_R = 7;
+        const CIHLA_S = 52;
+        const CIHLA_V = 18;
+        const CIHLA_MEZ = 6;
+        const RADKY = 5;
+        const SLOUPCE = 8;
+
+        const BARVY = ['#ff4444', '#ff8844', '#ffcc44', '#44ccff', '#aa44ff'];
+
+        let palka, mic, cihly, skore, zivoty, level, hraSkoncila, spustena, animFrame;
+
+        function vytvorCihly() {
+            cihly = [];
+            for (let r = 0; r < RADKY; r++) {
+                for (let s = 0; s < SLOUPCE; s++) {
+                    cihly.push({
+                        x: s * (CIHLA_S + CIHLA_MEZ) + 20,
+                        y: r * (CIHLA_V + CIHLA_MEZ) + 40,
+                        barva: BARVY[r],
+                        ziva: true
+                    });
+                }
+            }
+        }
+
+        function start() {
+            palka = { x: W/2 - PALKA_S/2, y: H - 30 };
+            mic = { x: W/2, y: H - 50, dx: 3 + level * 0.5, dy: -(3 + level * 0.5) };
+            skore = 0;
+            zivoty = 3;
+            level = 1;
+            hraSkoncila = false;
+            spustena = true;
+            document.getElementById('skore').textContent = 0;
+            document.getElementById('zivoty').textContent = 3;
+            document.getElementById('level').textContent = 1;
+            document.getElementById('overlay').style.display = 'none';
+            vytvorCihly();
+            if (animFrame) cancelAnimationFrame(animFrame);
+            loop();
+        }
+
+        function loop() {
+            update();
+            kreslit();
+            if (!hraSkoncila) animFrame = requestAnimationFrame(loop);
+        }
+
+        function update() {
+            // Míček
+            mic.x += mic.dx;
+            mic.y += mic.dy;
+
+            // Odraz od stěn
+            if (mic.x - MIC_R <= 0 || mic.x + MIC_R >= W) mic.dx *= -1;
+            if (mic.y - MIC_R <= 0) mic.dy *= -1;
+
+            // Odraz od palky
+            if (
+                mic.y + MIC_R >= palka.y &&
+                mic.y + MIC_R <= palka.y + PALKA_V &&
+                mic.x >= palka.x &&
+                mic.x <= palka.x + PALKA_S
+            ) {
+                const dopad = (mic.x - (palka.x + PALKA_S/2)) / (PALKA_S/2);
+                mic.dx = dopad * 5;
+                mic.dy = -Math.abs(mic.dy);
+            }
+
+            // Propad dolů
+            if (mic.y > H) {
+                zivoty--;
+                document.getElementById('zivoty').textContent = zivoty;
+                if (zivoty <= 0) {
+                    konec(false);
+                } else {
+                    // Reset míčku
+                    mic = { x: W/2, y: H - 50, dx: 3 + level * 0.5, dy: -(3 + level * 0.5) };
+                }
+                return;
+            }
+
+            // Kolize s cihlami
+            let zbyvajici = 0;
+            for (let c of cihly) {
+                if (!c.ziva) continue;
+                zbyvajici++;
+                if (
+                    mic.x + MIC_R > c.x &&
+                    mic.x - MIC_R < c.x + CIHLA_S &&
+                    mic.y + MIC_R > c.y &&
+                    mic.y - MIC_R < c.y + CIHLA_V
+                ) {
+                    c.ziva = false;
+                    mic.dy *= -1;
+                    skore += 10 * level;
+                    document.getElementById('skore').textContent = skore;
+                    zbyvajici--;
+                    break;
+                }
+            }
+
+            // Všechny cihly zničeny
+            if (zbyvajici === 0) {
+                level++;
+                document.getElementById('level').textContent = level;
+                vytvorCihly();
+                mic = { x: W/2, y: H - 50, dx: (3 + level * 0.5) * Math.sign(mic.dx), dy: -(3 + level * 0.5) };
+            }
+        }
+
+        function kreslit() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, W, H);
+
+            // Cihly
+            for (let c of cihly) {
+                if (!c.ziva) continue;
+                ctx.fillStyle = c.barva;
+                ctx.shadowColor = c.barva;
+                ctx.shadowBlur = 8;
+                ctx.fillRect(c.x, c.y, CIHLA_S, CIHLA_V);
+                ctx.shadowBlur = 0;
+            }
+
+            // Palka
+            ctx.fillStyle = '#00ff88';
+            ctx.shadowColor = '#00ff88';
+            ctx.shadowBlur = 15;
+            ctx.fillRect(palka.x, palka.y, PALKA_S, PALKA_V);
+            ctx.shadowBlur = 0;
+
+            // Míček
+            ctx.beginPath();
+            ctx.arc(mic.x, mic.y, MIC_R, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#ffffff';
+            ctx.shadowBlur = 15;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        }
+
+        function konec(vyhral) {
+            hraSkoncila = true;
+            const titulek = document.getElementById('overlay-titulek');
+            const text = document.getElementById('overlay-text');
+            titulek.textContent = vyhral ? 'VYHRÁL JSI! 🎉' : 'PROHRÁL JSI';
+            titulek.style.color = vyhral ? '#00ff88' : '#ff4444';
+            text.textContent = `SKÓRE: ${skore}`;
+            document.getElementById('overlay').style.display = 'flex';
+            document.querySelector('#overlay button').textContent = 'HRÁT ZNOVU';
+        }
+
+        // Ovládání myší
+        platno.addEventListener('mousemove', e => {
+            const rect = platno.getBoundingClientRect();
+            const x = e.clientX - rect.left - PALKA_S/2;
+            palka.x = Math.max(0, Math.min(W - PALKA_S, x));
+        });
+
+        // Ovládání šipkami
+        const klavesy = {};
+        document.addEventListener('keydown', e => { klavesy[e.key] = true; e.preventDefault(); });
+        document.addEventListener('keyup', e => { klavesy[e.key] = false; });
+
+        setInterval(() => {
+            if (!spustena || hraSkoncila) return;
+            if (klavesy['ArrowLeft'] || klavesy['a'] || klavesy['A']) palka.x = Math.max(0, palka.x - 7);
+            if (klavesy['ArrowRight'] || klavesy['d'] || klavesy['D']) palka.x = Math.min(W - PALKA_S, palka.x + 7);
+        }, 16);
+
+        // Počáteční kreslení
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(0, 0, W, H);
+    </script>
+
+</body>
+</html>
