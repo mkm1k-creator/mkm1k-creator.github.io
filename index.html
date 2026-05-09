@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hry</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            letter-spacing: 10px;
+            color: #00ff88;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        p {
+            color: #555;
+            letter-spacing: 4px;
+            margin-bottom: 50px;
+            font-size: 0.85rem;
+        }
+
+        .hry {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .hra {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            border: 1px solid #222;
+            padding: 20px 30px;
+            text-decoration: none;
+            color: #fff;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hra:hover {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px #00ff8822;
+        }
+
+        .hra:hover .ikona {
+            color: #00ff88;
+        }
+
+        .ikona {
+            font-size: 2.5rem;
+            transition: all 0.2s;
+        }
+
+        .nazev {
+            font-size: 1.2rem;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+        }
+
+        .popis {
+            font-size: 0.75rem;
+            color: #555;
+            letter-spacing: 2px;
+            margin-top: 4px;
+        }
+
+        .sipka {
+            margin-left: auto;
+            color: #333;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+        }
+
+        .hra:hover .sipka {
+            color: #00ff88;
+            transform: translateX(5px);
+        }
+    </style>
+</head>
+<body>
+
+    <h1>HRÁČ</h1>
+    <p>VYBER HRU</p>
+
+    <div class="hry">
+        <a href="had.html" class="hra">
+            <div class="ikona">🐍</div>
+            <div>
+                <div class="nazev">Had</div>
+                <div class="popis">Klasická hra — sněz jídlo, nevraz do zdi</div>
+            </div>
+            <div class="sipka">→</div>
+        </a>
+
+        <a href="pong.html" class="hra">
+            <div class="ikona">🏓</div>
+            <div>
+                <div class="nazev">Pong</div>
+                <div class="popis">Hraj proti počítači — první na 7 bodů vyhrává</div>
+            </div>
+            <div class="sipka">→</div>
+        </a>
+    </div>
+
+</body>
+</html>
