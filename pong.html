@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pong</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #0a0a0a;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+        }
+
+        h1 {
+            font-size: 2rem;
+            letter-spacing: 8px;
+            color: #00ff88;
+            margin-bottom: 10px;
+        }
+
+        #skore {
+            font-size: 1rem;
+            color: #888;
+            margin-bottom: 20px;
+            letter-spacing: 6px;
+        }
+
+        #platno {
+            border: 2px solid #00ff88;
+            box-shadow: 0 0 30px #00ff8844;
+        }
+
+        #info {
+            margin-top: 20px;
+            color: #555;
+            font-size: 0.8rem;
+            letter-spacing: 2px;
+        }
+
+        #game-over {
+            display: none;
+            position: absolute;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        #game-over h2 {
+            font-size: 2rem;
+            color: #00ff88;
+            letter-spacing: 6px;
+        }
+
+        #game-over p {
+            color: #888;
+            letter-spacing: 3px;
+        }
+
+        button {
+            background: transparent;
+            border: 2px solid #00ff88;
+            color: #00ff88;
+            padding: 10px 30px;
+            font-family: 'Courier New', monospace;
+            font-size: 1rem;
+            letter-spacing: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 5px;
+        }
+
+        button:hover {
+            background: #00ff88;
+            color: #0a0a0a;
+        }
+
+        a {
+            color: #555;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            margin-top: 15px;
+            transition: color 0.2s;
+        }
+
+        a:hover { color: #00ff88; }
+    </style>
+</head>
+<body>
+
+    <h1>PONG</h1>
+    <div id="skore">
+        <span id="hrac">0</span> : <span id="pc">0</span>
+    </div>
+    <canvas id="platno" width="500" height="350"></canvas>
+    <div id="info">W / S nebo ŠIPKY pro ovládání | první na 7 bodů vyhrává</div>
+    <a href="index.html">← ZPĚT DO MENU</a>
+
+    <div id="game-over">
+        <h2 id="vitez">VYHRÁL JSI!</h2>
+        <p id="vysledek"></p>
+        <button onclick="restart()">HRÁT ZNOVU</button>
+        <button onclick="window.location='index.html'">MENU</button>
+    </div>
+
+    <script>
+        const platno = document.getElementById('platno');
+        const ctx = platno.getContext('2d');
+
+        const W = platno.width;
+        const H = platno.height;
+        const PALKA_V = 70;
+        const PALKA_S = 10;
+        const MICK_V = 10;
+        const MAX_SKORE = 7;
+        const RYCHLOST_PC = 3.5;
+
+        let hrac, poc, mic, skoreHrac, skorePc, hraSkoncila, animFrame;
+
+        function start() {
+            hrac = { x: 10, y: H/2 - PALKA_V/2, dy: 0 };
+            poc = { x: W - 10 - PALKA_S, y: H/2 - PALKA_V/2 };
+            mic = { x: W/2, y: H/2, dx: 4, dy: 3 };
+            skoreHrac = 0;
+            skorePc = 0;
+            hraSkoncila = false;
+            document.getElementById('hrac').textContent = 0;
+            document.getElementById('pc').textContent = 0;
+            document.getElementById('game-over').style.display = 'none';
+            if (animFrame) cancelAnimationFrame(animFrame);
+            loop();
+        }
+
+        function loop() {
+            update();
+            kreslit();
+            if (!hraSkoncila) animFrame = requestAnimationFrame(loop);
+        }
+
+        function update() {
+            // Hráč
+            hrac.y += hrac.dy;
+            hrac.y = Math.max(0, Math.min(H - PALKA_V, hrac.y));
+
+            // PC AI
+            const stred = poc.y + PALKA_V / 2;
+            if (stred < mic.y - 5) poc.y += RYCHLOST_PC;
+            else if (stred > mic.y + 5) poc.y -= RYCHLOST_PC;
+            poc.y = Math.max(0, Math.min(H - PALKA_V, poc.y));
+
+            // Míček
+            mic.x += mic.dx;
+            mic.y += mic.dy;
+
+            // Odraz od stropu/podlahy
+            if (mic.y <= 0 || mic.y >= H - MICK_V) mic.dy *= -1;
+
+            // Odraz od hráče
+            if (mic.x <= hrac.x + PALKA_S &&
+                mic.y + MICK_V >= hrac.y &&
+                mic.y <= hrac.y + PALKA_V &&
+                mic.dx < 0) {
+                mic.dx *= -1.05;
+                const dopad = (mic.y + MICK_V/2 - (hrac.y + PALKA_V/2)) / (PALKA_V/2);
+                mic.dy = dopad * 5;
+            }
+
+            // Odraz od PC
+            if (mic.x + MICK_V >= poc.x &&
+                mic.y + MICK_V >= poc.y &&
+                mic.y <= poc.y + PALKA_V &&
+                mic.dx > 0) {
+                mic.dx *= -1.05;
+                const dopad = (mic.y + MICK_V/2 - (poc.y + PALKA_V/2)) / (PALKA_V/2);
+                mic.dy = dopad * 5;
+            }
+
+            // Omezení rychlosti
+            mic.dx = Math.max(-10, Math.min(10, mic.dx));
+            mic.dy = Math.max(-8, Math.min(8, mic.dy));
+
+            // Bod
+            if (mic.x < 0) {
+                skorePc++;
+                document.getElementById('pc').textContent = skorePc;
+                if (skorePc >= MAX_SKORE) { konec(false); return; }
+                resetMic(1);
+            }
+            if (mic.x > W) {
+                skoreHrac++;
+                document.getElementById('hrac').textContent = skoreHrac;
+                if (skoreHrac >= MAX_SKORE) { konec(true); return; }
+                resetMic(-1);
+            }
+        }
+
+        function resetMic(smer) {
+            mic = { x: W/2, y: H/2, dx: 4 * smer, dy: (Math.random() - 0.5) * 4 };
+        }
+
+        function kreslit() {
+            ctx.fillStyle = '#0a0a0a';
+            ctx.fillRect(0, 0, W, H);
+
+            // Střední čára
+            ctx.setLineDash([5, 10]);
+            ctx.strokeStyle = '#222';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(W/2, 0);
+            ctx.lineTo(W/2, H);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Hráč
+            ctx.fillStyle = '#00ff88';
+            ctx.shadowColor = '#00ff88';
+            ctx.shadowBlur = 15;
+            ctx.fillRect(hrac.x, hrac.y, PALKA_S, PALKA_V);
+
+            // PC
+            ctx.fillStyle = '#ff4444';
+            ctx.shadowColor = '#ff4444';
+            ctx.fillRect(poc.x, poc.y, PALKA_S, PALKA_V);
+            ctx.shadowBlur = 0;
+
+            // Míček
+            ctx.fillStyle = '#ffffff';
+            ctx.shadowColor = '#ffffff';
+            ctx.shadowBlur = 10;
+            ctx.fillRect(mic.x, mic.y, MICK_V, MICK_V);
+            ctx.shadowBlur = 0;
+        }
+
+        function konec(vyhral) {
+            hraSkoncila = true;
+            document.getElementById('vitez').textContent = vyhral ? 'VYHRÁL JSI! 🎉' : 'PROHRÁL JSI';
+            document.getElementById('vitez').style.color = vyhral ? '#00ff88' : '#ff4444';
+            document.getElementById('vysledek').textContent = `${skoreHrac} : ${skorePc}`;
+            document.getElementById('game-over').style.display = 'flex';
+        }
+
+        function restart() { start(); }
+
+        document.addEventListener('keydown', e => {
+            if (e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') hrac.dy = -5;
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') hrac.dy = 5;
+            e.preventDefault();
+        });
+
+        document.addEventListener('keyup', e => {
+            if (['ArrowUp','ArrowDown','w','W','s','S'].includes(e.key)) hrac.dy = 0;
+        });
+
+        start();
+    </script>
+
+</body>
+</html>

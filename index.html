@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Had</title>
+    <title>Hry</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -19,215 +19,103 @@
         }
 
         h1 {
-            font-size: 2rem;
-            letter-spacing: 8px;
+            font-size: 2.5rem;
+            letter-spacing: 10px;
             color: #00ff88;
             margin-bottom: 10px;
             text-transform: uppercase;
         }
 
-        #skore {
-            font-size: 1rem;
-            color: #888;
-            margin-bottom: 20px;
-            letter-spacing: 4px;
-        }
-
-        #platno {
-            border: 2px solid #00ff88;
-            box-shadow: 0 0 30px #00ff8844;
-        }
-
-        #info {
-            margin-top: 20px;
+        p {
             color: #555;
-            font-size: 0.8rem;
-            letter-spacing: 2px;
-        }
-
-        #game-over {
-            display: none;
-            position: absolute;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-        }
-
-        #game-over h2 {
-            font-size: 2rem;
-            color: #ff4444;
-            letter-spacing: 6px;
-        }
-
-        #game-over p {
-            color: #888;
-            letter-spacing: 3px;
-        }
-
-        button {
-            background: transparent;
-            border: 2px solid #00ff88;
-            color: #00ff88;
-            padding: 10px 30px;
-            font-family: 'Courier New', monospace;
-            font-size: 1rem;
             letter-spacing: 4px;
-            cursor: pointer;
+            margin-bottom: 50px;
+            font-size: 0.85rem;
+        }
+
+        .hry {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .hra {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            border: 1px solid #222;
+            padding: 20px 30px;
+            text-decoration: none;
+            color: #fff;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hra:hover {
+            border-color: #00ff88;
+            box-shadow: 0 0 20px #00ff8822;
+        }
+
+        .hra:hover .ikona {
+            color: #00ff88;
+        }
+
+        .ikona {
+            font-size: 2.5rem;
             transition: all 0.2s;
         }
 
-        button:hover {
-            background: #00ff88;
-            color: #0a0a0a;
+        .nazev {
+            font-size: 1.2rem;
+            letter-spacing: 6px;
+            text-transform: uppercase;
+        }
+
+        .popis {
+            font-size: 0.75rem;
+            color: #555;
+            letter-spacing: 2px;
+            margin-top: 4px;
+        }
+
+        .sipka {
+            margin-left: auto;
+            color: #333;
+            font-size: 1.2rem;
+            transition: all 0.2s;
+        }
+
+        .hra:hover .sipka {
+            color: #00ff88;
+            transform: translateX(5px);
         }
     </style>
 </head>
 <body>
 
-    <h1>HAD</h1>
-    <div id="skore">SKÓRE: <span id="cislo">0</span></div>
-    <canvas id="platno" width="400" height="400"></canvas>
-    <div id="info">WASD nebo ŠIPKY pro ovládání</div>
+    <h1>HRÁČ</h1>
+    <p>VYBER HRU</p>
 
-    <div id="game-over">
-        <h2>KONEC HRY</h2>
-        <p>SKÓRE: <span id="finalni-skore">0</span></p>
-        <button onclick="restart()">HRÁT ZNOVU</button>
+    <div class="hry">
+        <a href="had.html" class="hra">
+            <div class="ikona">🐍</div>
+            <div>
+                <div class="nazev">Had</div>
+                <div class="popis">Klasická hra — sněz jídlo, nevraz do zdi</div>
+            </div>
+            <div class="sipka">→</div>
+        </a>
+
+        <a href="pong.html" class="hra">
+            <div class="ikona">🏓</div>
+            <div>
+                <div class="nazev">Pong</div>
+                <div class="popis">Hraj proti počítači — první na 7 bodů vyhrává</div>
+            </div>
+            <div class="sipka">→</div>
+        </a>
     </div>
-
-    <script>
-        const platno = document.getElementById('platno');
-        const ctx = platno.getContext('2d');
-        const velikostBunky = 20;
-        const pocetBunek = 20;
-
-        let had, jidlo, smer, dalsiSmer, skore, interval, hraSkoncila;
-
-        function start() {
-            had = [{ x: 10, y: 10 }];
-            smer = { x: 1, y: 0 };
-            dalsiSmer = { x: 1, y: 0 };
-            skore = 0;
-            hraSkoncila = false;
-            document.getElementById('cislo').textContent = 0;
-            document.getElementById('game-over').style.display = 'none';
-            novéJídlo();
-            if (interval) clearInterval(interval);
-            interval = setInterval(update, 120);
-        }
-
-        function novéJídlo() {
-            do {
-                jidlo = {
-                    x: Math.floor(Math.random() * pocetBunek),
-                    y: Math.floor(Math.random() * pocetBunek)
-                };
-            } while (had.some(s => s.x === jidlo.x && s.y === jidlo.y));
-        }
-
-        function update() {
-            smer = dalsiSmer;
-            const hlava = { x: had[0].x + smer.x, y: had[0].y + smer.y };
-
-            // Náraz do zdi
-            if (hlava.x < 0 || hlava.x >= pocetBunek || hlava.y < 0 || hlava.y >= pocetBunek) {
-                konec(); return;
-            }
-
-            // Náraz do sebe
-            if (had.some(s => s.x === hlava.x && s.y === hlava.y)) {
-                konec(); return;
-            }
-
-            had.unshift(hlava);
-
-            if (hlava.x === jidlo.x && hlava.y === jidlo.y) {
-                skore++;
-                document.getElementById('cislo').textContent = skore;
-                novéJídlo();
-            } else {
-                had.pop();
-            }
-
-            kreslit();
-        }
-
-        function kreslit() {
-            // Pozadí
-            ctx.fillStyle = '#0a0a0a';
-            ctx.fillRect(0, 0, platno.width, platno.height);
-
-            // Mřížka
-            ctx.strokeStyle = '#111';
-            ctx.lineWidth = 0.5;
-            for (let i = 0; i < pocetBunek; i++) {
-                ctx.beginPath();
-                ctx.moveTo(i * velikostBunky, 0);
-                ctx.lineTo(i * velikostBunky, platno.height);
-                ctx.stroke();
-                ctx.beginPath();
-                ctx.moveTo(0, i * velikostBunky);
-                ctx.lineTo(platno.width, i * velikostBunky);
-                ctx.stroke();
-            }
-
-            // Jídlo
-            ctx.fillStyle = '#ff4444';
-            ctx.shadowColor = '#ff4444';
-            ctx.shadowBlur = 15;
-            ctx.fillRect(
-                jidlo.x * velikostBunky + 3,
-                jidlo.y * velikostBunky + 3,
-                velikostBunky - 6,
-                velikostBunky - 6
-            );
-            ctx.shadowBlur = 0;
-
-            // Had
-            had.forEach((segment, index) => {
-                const jas = index === 0 ? '#00ff88' : `hsl(${140 - index * 2}, 100%, ${50 - index}%)`;
-                ctx.fillStyle = jas;
-                if (index === 0) {
-                    ctx.shadowColor = '#00ff88';
-                    ctx.shadowBlur = 15;
-                }
-                ctx.fillRect(
-                    segment.x * velikostBunky + 1,
-                    segment.y * velikostBunky + 1,
-                    velikostBunky - 2,
-                    velikostBunky - 2
-                );
-                ctx.shadowBlur = 0;
-            });
-        }
-
-        function konec() {
-            clearInterval(interval);
-            hraSkoncila = true;
-            document.getElementById('finalni-skore').textContent = skore;
-            document.getElementById('game-over').style.display = 'flex';
-        }
-
-        function restart() {
-            start();
-        }
-
-        document.addEventListener('keydown', e => {
-            switch(e.key) {
-                case 'ArrowUp':    case 'w': case 'W':
-                    if (smer.y !== 1) dalsiSmer = { x: 0, y: -1 }; break;
-                case 'ArrowDown':  case 's': case 'S':
-                    if (smer.y !== -1) dalsiSmer = { x: 0, y: 1 }; break;
-                case 'ArrowLeft':  case 'a': case 'A':
-                    if (smer.x !== 1) dalsiSmer = { x: -1, y: 0 }; break;
-                case 'ArrowRight': case 'd': case 'D':
-                    if (smer.x !== -1) dalsiSmer = { x: 1, y: 0 }; break;
-            }
-            e.preventDefault();
-        });
-
-        start();
-    </script>
 
 </body>
 </html>
