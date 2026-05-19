@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BREAKOUT</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap');
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #050510;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+            color: #fff;
+            overflow: hidden;
+        }
+        h1 { font-size: 2.4rem; letter-spacing: 12px; color: #00ff88; margin-bottom: 8px; text-shadow: 0 0 20px #00ff8866; }
+        #info-bar { font-size: 0.9rem; color: #888; margin-bottom: 10px; letter-spacing: 4px; display: flex; gap: 40px; }
+        #info-bar span span { color: #fff; }
+        #lives-bar { display: flex; gap: 8px; margin-bottom: 10px; align-items: center; }
+        .life-dot { width: 13px; height: 13px; border-radius: 50%; background: #00ff88; box-shadow: 0 0 8px #00ff88; transition: all 0.3s; }
+        .life-dot.lost { background: #1a1a2e; box-shadow: none; border: 1px solid #333; }
+        #platno { border: 2px solid #00ff88; box-shadow: 0 0 40px #00ff8833; display: block; }
+        #ovladani { margin-top: 12px; color: #444; font-size: 0.75rem; letter-spacing: 2px; }
+        #overlay { display: flex; position: absolute; flex-direction: column; align-items: center; gap: 14px; pointer-events: all; }
+        #overlay h2 { font-size: 2rem; letter-spacing: 6px; font-family: 'Share Tech Mono', monospace; }
+        #overlay p { color: #888; letter-spacing: 2px; font-size: 0.85rem; }
+        button { background: transparent; border: 2px solid #00ff88; color: #00ff88; padding: 10px 30px; font-family: 'Share Tech Mono', 'Courier New', monospace; font-size: 1rem; letter-spacing: 4px; cursor: pointer; transition: all 0.2s; margin: 3px; }
+        button:hover { background: #00ff88; color: #050510; box-shadow: 0 0 20px #00ff8866; }
+        #powerup-bar { display: flex; gap: 10px; margin-bottom: 8px; font-size: 0.75rem; letter-spacing: 2px; min-height: 22px; }
+        .pu-label { padding: 2px 8px; border-radius: 3px; }
+        .pu-triple { border: 1px solid #ff6600; color: #ff6600; }
+        .pu-wide   { border: 1px solid #00aaff; color: #00aaff; }
+        .pu-slow   { border: 1px solid #aa44ff; color: #aa44ff; }
+        a { color: #333; text-decoration: none; font-size: 0.75rem; letter-spacing: 3px; margin-top: 12px; transition: color 0.2s; }
+        a:hover { color: #00ff88; }
+    </style>
+</head>
+<body>
+    <h1>BREAKOUT</h1>
+    <div id="info-bar">
+        <span>SKÓRE: <span id="skore">0</span></span>
+        <span>LEVEL: <span id="level">1</span></span>
+        <span>REKORD: <span id="nejlepsi">0</span></span>
+    </div>
+    <div id="lives-bar"></div>
+    <div id="powerup-bar"></div>
+    <canvas id="platno" width="640" height="460"></canvas>
+    <div id="ovladani">MYŠÍ nebo ← → pro ovládání</div>
+    <a href="index.html">← ZPĚT DO MENU</a>
+
+    <div id="overlay">
+        <h2 id="overlay-titulek" style="color:#00ff88">BREAKOUT</h2>
+        <p id="overlay-text">Znič všechny cihly!</p>
+        <p id="overlay-legend">🟠 ztrojení míčků &nbsp;|&nbsp; 🔵 širší palka &nbsp;|&nbsp; 🟣 zpomalení</p>
+        <button onclick="startHra()">HRÁT</button>
+    </div>
+
+    <script>
+    const platno = document.getElementById('platno');
+    const ctx = platno.getContext('2d');
+    const W = platno.width, H = platno.height;
+
+    const PALKA_V = 12, MIC_R = 8;
+    const CIHLA_S = 66, CIHLA_V = 20, CIHLA_MEZ = 6;
+    const RADKY = 6, SLOUPCE = 8;
+    const OFFSET_X = 17, OFFSET_Y = 44;
+    const BARVY = ['#ff4444','#ff7744','#ffcc44','#44ddff','#8844ff','#ff44aa'];
+
+    const PU_TRIPLE = 'triple', PU_WIDE = 'wide', PU_SLOW = 'slow';
+    const PU_BARVY = { triple:'#ff6600', wide:'#00aaff', slow:'#aa44ff' };
+    const PU_ZNAKY = { triple:'3x', wide:'▬', slow:'◎' };
+
+    let palka, mice, cihly, padajiciPU;
+    let skore, zivoty, level, nejlepsi;
+    let hraSkoncila, spustena, animFrame;
+    let odpocet = 0, odpocetTimer = null;
+    let PALKA_S = 90;
+    let palkaShirsiBuf = 0, slowBuf = 0;
+    let posledniCas = null;
+
+    function initLives() {
+        const bar = document.getElementById('lives-bar');
+        bar.innerHTML = '';
+        for (let i = 0; i < 3; i++) {
+            const d = document.createElement('div');
+            d.className = 'life-dot' + (i >= zivoty ? ' lost' : '');
+            d.id = 'life-' + i;
+            bar.appendChild(d);
+        }
+    }
+
+    function updateLives() {
+        for (let i = 0; i < 3; i++) {
+            const d = document.getElementById('life-' + i);
+            if (d) d.className = 'life-dot' + (i >= zivoty ? ' lost' : '');
+        }
+    }
+
+    function vytvorCihly() {
+        cihly = [];
+        const nez = Math.min(level * 2, 10);
+        const nezPos = new Set();
+        while (nezPos.size < nez) nezPos.add(Math.floor(Math.random() * RADKY * SLOUPCE));
+        for (let r = 0; r < RADKY; r++) {
+            for (let s = 0; s < SLOUPCE; s++) {
+                const idx = r * SLOUPCE + s;
+                const neznicitelna = nezPos.has(idx);
+                const pevnost = neznicitelna ? -1 : (r < 2 ? 2 : 1);
+                cihly.push({
+                    x: s * (CIHLA_S + CIHLA_MEZ) + OFFSET_X,
+                    y: r * (CIHLA_V + CIHLA_MEZ) + OFFSET_Y,
+                    barva: neznicitelna ? '#888' : BARVY[r % BARVY.length],
+                    pevnost, maxPevnost: pevnost, neznicitelna, ziva: true
+                });
+            }
+        }
+    }
+
+    function novyMicek(sp) {
+        const uhel = (-Math.PI / 2) + (Math.random() - 0.5) * 0.8;
+        return { x: palka.x + PALKA_S / 2, y: palka.y - MIC_R - 2, dx: Math.cos(uhel) * sp, dy: Math.sin(uhel) * sp, aktivni: true };
+    }
+
+    function startHra() {
+        PALKA_S = 90;
+        palka = { x: W / 2 - PALKA_S / 2, y: H - 36 };
+        skore = 0; zivoty = 3; level = 1;
+        nejlepsi = parseInt(localStorage.getItem('breakout_best') || '0');
+        hraSkoncila = false; spustena = false;
+        padajiciPU = []; palkaShirsiBuf = 0; slowBuf = 0;
+        mice = [{ x: W/2, y: palka.y - MIC_R - 2, dx: 0, dy: 0, aktivni: true }];
+        document.getElementById('skore').textContent = 0;
+        document.getElementById('level').textContent = 1;
+        document.getElementById('nejlepsi').textContent = nejlepsi;
+        document.getElementById('overlay').style.display = 'none';
+        document.getElementById('powerup-bar').innerHTML = '';
+        vytvorCihly();
+        initLives();
+        if (animFrame) cancelAnimationFrame(animFrame);
+        spustOdpocet();
+    }
+
+    function spustOdpocet() {
+        odpocet = 3;
+        kreslit(); kreslitOdpocet(odpocet);
+        if (odpocetTimer) clearInterval(odpocetTimer);
+        odpocetTimer = setInterval(() => {
+            odpocet--;
+            kreslit();
+            if (odpocet > 0) {
+                kreslitOdpocet(odpocet);
+            } else {
+                clearInterval(odpocetTimer); odpocetTimer = null;
+                kreslitOdpocet('GO!');
+                setTimeout(() => {
+                    const sp = 3.2 + level * 0.35;
+                    const uhel = (-Math.PI / 2) + (Math.random() - 0.5) * 0.6;
+                    mice[0].dx = Math.cos(uhel) * sp;
+                    mice[0].dy = Math.sin(uhel) * sp;
+                    spustena = true; posledniCas = null;
+                    animFrame = requestAnimationFrame(loop);
+                }, 600);
+            }
+        }, 1000);
+    }
+
+    function loop(ts) {
+        const dt = posledniCas ? Math.min((ts - posledniCas) / 16.67, 3) : 1;
+        posledniCas = ts;
+        update(dt); kreslit();
+        if (!hraSkoncila) animFrame = requestAnimationFrame(loop);
+    }
+
+    function update(dt) {
+        if (!spustena) return;
+
+        if (palkaShirsiBuf > 0) {
+            palkaShirsiBuf -= 16.67 * dt;
+            if (palkaShirsiBuf <= 0) { PALKA_S = 90; palkaShirsiBuf = 0; updatePUBar(); }
+        }
+        if (slowBuf > 0) {
+            slowBuf -= 16.67 * dt;
+            if (slowBuf <= 0) { slowBuf = 0; updatePUBar(); }
+        }
+
+        const slow = slowBuf > 0 ? 0.55 : 1;
+
+        for (let m of mice) {
+            if (!m.aktivni) continue;
+            m.x += m.dx * dt * slow;
+            m.y += m.dy * dt * slow;
+            if (m.x - MIC_R <= 0) { m.dx = Math.abs(m.dx); m.x = MIC_R + 1; }
+            if (m.x + MIC_R >= W) { m.dx = -Math.abs(m.dx); m.x = W - MIC_R - 1; }
+            if (m.y - MIC_R <= 0) { m.dy = Math.abs(m.dy); m.y = MIC_R + 1; }
+            if (m.dy > 0 &&
+                m.y + MIC_R >= palka.y && m.y - MIC_R <= palka.y + PALKA_V &&
+                m.x + MIC_R >= palka.x && m.x - MIC_R <= palka.x + PALKA_S) {
+                const dopad = (m.x - (palka.x + PALKA_S / 2)) / (PALKA_S / 2);
+                const sp = Math.hypot(m.dx, m.dy);
+                m.dx = dopad * sp * 1.1;
+                m.dy = -Math.abs(m.dy);
+                if (Math.abs(m.dy) < 1.5) m.dy = -1.5;
+                m.y = palka.y - MIC_R - 1;
+            }
+            if (m.y > H + MIC_R) m.aktivni = false;
+        }
+
+        if (mice.every(m => !m.aktivni)) {
+            zivoty--;
+            updateLives();
+            if (zivoty <= 0) { konec(false); return; }
+            spustena = false; padajiciPU = [];
+            mice = [{ x: palka.x + PALKA_S / 2, y: palka.y - MIC_R - 2, dx: 0, dy: 0, aktivni: true }];
+            kreslit(); spustOdpocet(); return;
+        }
+
+        for (let pu of padajiciPU) {
+            if (!pu.aktivni) continue;
+            pu.y += 2 * dt;
+            if (pu.y + 10 >= palka.y && pu.y <= palka.y + PALKA_V &&
+                pu.x + 12 >= palka.x && pu.x - 12 <= palka.x + PALKA_S) {
+                pu.aktivni = false; aplikujPU(pu.typ);
+            }
+            if (pu.y > H) pu.aktivni = false;
+        }
+        padajiciPU = padajiciPU.filter(p => p.aktivni);
+
+        let zbyvajici = 0;
+        for (let c of cihly) {
+            if (!c.ziva) continue;
+            if (!c.neznicitelna) zbyvajici++;
+            for (let m of mice) {
+                if (!m.aktivni) continue;
+                if (m.x + MIC_R > c.x && m.x - MIC_R < c.x + CIHLA_S &&
+                    m.y + MIC_R > c.y && m.y - MIC_R < c.y + CIHLA_V) {
+                    const fL = (m.x + MIC_R) - c.x, fR = (c.x + CIHLA_S) - (m.x - MIC_R);
+                    const fT = (m.y + MIC_R) - c.y, fB = (c.y + CIHLA_V) - (m.y - MIC_R);
+                    const mH = Math.min(fL, fR), mV = Math.min(fT, fB);
+                    if (mV < mH) m.dy *= -1; else m.dx *= -1;
+                    if (c.neznicitelna) continue;
+                    c.pevnost--;
+                    if (c.pevnost <= 0) {
+                        c.ziva = false; zbyvajici--;
+                        if (Math.random() < 0.22) {
+                            const typy = [PU_TRIPLE, PU_WIDE, PU_SLOW];
+                            padajiciPU.push({ x: c.x + CIHLA_S / 2, y: c.y + CIHLA_V / 2, typ: typy[Math.floor(Math.random() * 3)], aktivni: true });
+                        }
+                        skore += 10 * level;
+                    } else { skore += 5 * level; }
+                    document.getElementById('skore').textContent = skore;
+                    break;
+                }
+            }
+        }
+
+        if (zbyvajici === 0) {
+            level++; document.getElementById('level').textContent = level;
+            vytvorCihly(); spustena = false; padajiciPU = [];
+            mice = [{ x: palka.x + PALKA_S / 2, y: palka.y - MIC_R - 2, dx: 0, dy: 0, aktivni: true }];
+            kreslit(); spustOdpocet();
+        }
+    }
+
+    function aplikujPU(typ) {
+        if (typ === PU_TRIPLE) {
+            const a = mice.filter(m => m.aktivni);
+            if (a.length) { const sp = Math.hypot(a[0].dx, a[0].dy); mice.push(novyMicek(sp)); mice.push(novyMicek(sp)); }
+        } else if (typ === PU_WIDE) { PALKA_S = 150; palkaShirsiBuf = 8000; }
+        else if (typ === PU_SLOW) { slowBuf = 6000; }
+        updatePUBar();
+    }
+
+    function updatePUBar() {
+        const bar = document.getElementById('powerup-bar');
+        bar.innerHTML = '';
+        if (palkaShirsiBuf > 0) { const s = document.createElement('span'); s.className = 'pu-label pu-wide'; s.textContent = '▬ WIDE ' + Math.ceil(palkaShirsiBuf/1000) + 's'; bar.appendChild(s); }
+        if (slowBuf > 0) { const s = document.createElement('span'); s.className = 'pu-label pu-slow'; s.textContent = '◎ SLOW ' + Math.ceil(slowBuf/1000) + 's'; bar.appendChild(s); }
+        const poc = mice.filter(m => m.aktivni).length;
+        if (poc > 1) { const s = document.createElement('span'); s.className = 'pu-label pu-triple'; s.textContent = '3x MÍČKY ×' + poc; bar.appendChild(s); }
+    }
+
+    function kreslit() {
+        ctx.fillStyle = '#050510';
+        ctx.fillRect(0, 0, W, H);
+
+        ctx.strokeStyle = 'rgba(0,255,136,0.04)';
+        ctx.lineWidth = 1;
+        for (let x = 0; x < W; x += 40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+        for (let y = 0; y < H; y += 40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+        for (let c of cihly) {
+            if (!c.ziva) continue;
+            if (c.neznicitelna) {
+                ctx.fillStyle = '#3a3a4a'; ctx.fillRect(c.x, c.y, CIHLA_S, CIHLA_V);
+                ctx.fillStyle = '#555566'; ctx.fillRect(c.x+2, c.y+2, CIHLA_S-4, 4);
+                ctx.strokeStyle = '#777788'; ctx.lineWidth = 1.5; ctx.strokeRect(c.x, c.y, CIHLA_S, CIHLA_V);
+                ctx.strokeStyle = '#444455'; ctx.lineWidth = 0.5;
+                ctx.beginPath(); ctx.moveTo(c.x+CIHLA_S/2,c.y); ctx.lineTo(c.x+CIHLA_S/2,c.y+CIHLA_V); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(c.x,c.y+CIHLA_V/2); ctx.lineTo(c.x+CIHLA_S,c.y+CIHLA_V/2); ctx.stroke();
+            } else {
+                ctx.globalAlpha = c.pevnost === 1 && c.maxPevnost === 2 ? 0.6 : 1;
+                ctx.fillStyle = c.barva;
+                ctx.fillRect(c.x, c.y, CIHLA_S, CIHLA_V);
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.fillRect(c.x+1, c.y+1, CIHLA_S-2, 3);
+                ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                ctx.fillRect(c.x+1, c.y+CIHLA_V-3, CIHLA_S-2, 2);
+                ctx.globalAlpha = 1;
+            }
+        }
+
+        for (let pu of padajiciPU) {
+            if (!pu.aktivni) continue;
+            const barva = PU_BARVY[pu.typ];
+            ctx.beginPath(); ctx.arc(pu.x, pu.y, 11, 0, Math.PI*2);
+            ctx.fillStyle = barva + '33'; ctx.fill();
+            ctx.strokeStyle = barva; ctx.lineWidth = 2; ctx.stroke();
+            ctx.fillStyle = barva; ctx.font = 'bold 10px Courier New';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(PU_ZNAKY[pu.typ], pu.x, pu.y);
+        }
+
+        const pg = ctx.createLinearGradient(palka.x, palka.y, palka.x, palka.y+PALKA_V);
+        pg.addColorStop(0, '#00ff88'); pg.addColorStop(1, '#008844');
+        ctx.fillStyle = pg; ctx.fillRect(palka.x, palka.y, PALKA_S, PALKA_V);
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.fillRect(palka.x+2, palka.y+1, PALKA_S-4, 3);
+
+        for (let m of mice) {
+            if (!m.aktivni) continue;
+            ctx.beginPath(); ctx.arc(m.x, m.y, MIC_R, 0, Math.PI*2);
+            ctx.fillStyle = '#ffffff'; ctx.fill();
+            ctx.beginPath(); ctx.arc(m.x-2, m.y-2, MIC_R*0.38, 0, Math.PI*2);
+            ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fill();
+        }
+
+        if (slowBuf > 0) { ctx.fillStyle = 'rgba(100,50,200,0.05)'; ctx.fillRect(0,0,W,H); }
+    }
+
+    function kreslitOdpocet(text) {
+        ctx.save();
+        ctx.font = 'bold 88px Courier New';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillStyle = text === 'GO!' ? '#00ff88' : '#ffffff';
+        ctx.globalAlpha = 0.95;
+        ctx.shadowColor = ctx.fillStyle; ctx.shadowBlur = 35;
+        ctx.fillText(text, W/2, H/2);
+        ctx.restore();
+    }
+
+    function konec(vyhral) {
+        hraSkoncila = true;
+        if (skore > nejlepsi) { nejlepsi = skore; localStorage.setItem('breakout_best', nejlepsi); document.getElementById('nejlepsi').textContent = nejlepsi; }
+        const t = document.getElementById('overlay-titulek'), p = document.getElementById('overlay-text');
+        t.textContent = vyhral ? 'VYHRÁL JSI!' : 'GAME OVER';
+        t.style.color = vyhral ? '#00ff88' : '#ff4444';
+        p.textContent = 'SKÓRE: ' + skore + (skore >= nejlepsi && skore > 0 ? '  ★ REKORD' : '');
+        document.getElementById('overlay-legend').style.display = 'none';
+        document.getElementById('overlay').style.display = 'flex';
+        document.querySelector('#overlay button').textContent = 'HRÁT ZNOVU';
+    }
+
+    platno.addEventListener('mousemove', e => {
+        const rect = platno.getBoundingClientRect();
+        const x = (e.clientX - rect.left) * (W / rect.width) - PALKA_S / 2;
+        palka.x = Math.max(0, Math.min(W - PALKA_S, x));
+    });
+
+    const klavesy = {};
+    document.addEventListener('keydown', e => { klavesy[e.key] = true; if(['ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault(); });
+    document.addEventListener('keyup', e => { klavesy[e.key] = false; });
+    setInterval(() => {
+        if (!spustena || hraSkoncila || !palka) return;
+        if (klavesy['ArrowLeft'] || klavesy['a'] || klavesy['A']) palka.x = Math.max(0, palka.x - 9);
+        if (klavesy['ArrowRight'] || klavesy['d'] || klavesy['D']) palka.x = Math.min(W - PALKA_S, palka.x + 9);
+    }, 16);
+
+    ctx.fillStyle = '#050510';
+    ctx.fillRect(0, 0, W, H);
+    </script>
+</body>
+</html>
