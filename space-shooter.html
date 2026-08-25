@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+<meta charset="UTF-8">
+<title>Star Defender</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: radial-gradient(ellipse at center, #0a0e27 0%, #000000 100%);
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; overflow:hidden;
+    font-family: 'Courier New', monospace;
+  }
+  #gameContainer { position:relative; }
+  canvas {
+    display:block;
+    background: #000;
+    box-shadow: 0 0 40px rgba(80,140,255,0.4);
+    border: 2px solid #2a4d8f;
+    border-radius: 6px;
+  }
+  #hud {
+    position:absolute; top:10px; left:0; right:0;
+    display:flex; justify-content:space-between;
+    padding:0 20px; color:#8fd0ff; font-size:18px;
+    text-shadow: 0 0 8px #2a7fff; pointer-events:none;
+    letter-spacing:1px;
+  }
+  #overlay {
+    position:absolute; top:0; left:0; right:0; bottom:0;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:rgba(0,5,20,0.85); color:#eaf6ff; text-align:center;
+  }
+  #overlay h1 { font-size:42px; color:#7fd3ff; text-shadow:0 0 20px #2a7fff; margin-bottom:10px; letter-spacing:3px; }
+  #overlay p { margin:6px 0; color:#a8c8e8; font-size:15px; }
+  #overlay button {
+    margin-top:22px; padding:12px 32px; font-size:18px; cursor:pointer;
+    background:linear-gradient(180deg,#2a7fff,#1550a8); color:#fff; border:none;
+    border-radius:6px; font-family:inherit; letter-spacing:2px;
+    box-shadow:0 0 20px rgba(42,127,255,0.6);
+  }
+  #overlay button:hover { background:linear-gradient(180deg,#3f95ff,#1c66c9); }
+  #hidden { display:none; }
+  .stat { min-width:110px; }
+</style>
+</head>
+<body>
+<div id="gameContainer">
+  <canvas id="game" width="720" height="640"></canvas>
+  <div id="hud">
+    <span class="stat">SKÓRE: <span id="score">0</span></span>
+    <span class="stat" style="text-align:center">LEVEL: <span id="level">1</span></span>
+    <span class="stat" style="text-align:right">ŽIVOTY: <span id="lives">3</span></span>
+  </div>
+  <div id="overlay">
+    <h1>STAR DEFENDER</h1>
+    <p>Šipky / WASD = pohyb &nbsp;|&nbsp; MEZERNÍK = střelba</p>
+    <p>Sestřeluj lodě, sbírej power-upy, přežij vlny nepřátel.</p>
+    <p id="finalStats" class="hidden"></p>
+    <button id="startBtn">SPUSTIT HRU</button>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+const scoreEl = document.getElementById('score');
+const levelEl = document.getElementById('level');
+const livesEl = document.getElementById('lives');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('startBtn');
+const finalStats = document.getElementById('finalStats');
+
+let keys = {};
+window.addEventListener('keydown', e => {
+  keys[e.key] = true;
+  if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight',' '].includes(e.key)) e.preventDefault();
+});
+window.addEventListener('keyup', e => keys[e.key] = false);
+
+function rectsOverlap(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.h ? false : (
+    a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y
+  );
+}
+
+class Star {
+  constructor(){ this.reset(true); }
+  reset(initial){
+    this.x = Math.random()*W;
+    this.y = initial ? Math.random()*H : -2;
+    this.speed = 0.5 + Math.random()*2.5;
+    this.size = Math.random()*1.8 + 0.4;
+  }
+  update(){
+    this.y += this.speed;
+    if (this.y > H) this.reset(false);
+  }
+  draw(){
+    ctx.fillStyle = `rgba(255,255,255,${0.4+this.speed/3})`;
+    ctx.fillRect(this.x, this.y, this.size, this.size);
+  }
+}
+
+class Player {
+  constructor(){
+    this.w = 40; this.h = 40;
+    this.x = W/2 - this.w/2; this.y = H - 80;
+    this.speed = 5.5;
+    this.cooldown = 0;
+    this.fireRate = 16;
+    this.spread = 0;
+    this.shield = 0;
+  }
+  update(){
+    if ((keys['ArrowLeft']||keys['a']) && this.x > 0) this.x -= this.speed;
+    if ((keys['ArrowRight']||keys['d']) && this.x < W-this.w) this.x += this.speed;
+    if ((keys['ArrowUp']||keys['w']) && this.y > 0) this.y -= this.speed;
+    if ((keys['ArrowDown']||keys['s']) && this.y < H-this.h) this.y += this.speed;
+    if (this.cooldown > 0) this.cooldown--;
+    if (keys[' '] && this.cooldown <= 0) {
+      this.shoot();
+      this.cooldown = this.fireRate;
+    }
+    if (this.shield > 0) this.shield--;
+  }
+  shoot(){
+    const cx = this.x + this.w/2;
+    bullets.push(new Bullet(cx-2, this.y, 0, -9));
+    if (this.spread > 0){
+      bullets.push(new Bullet(cx-2, this.y, -3, -8));
+      bullets.push(new Bullet(cx-2, this.y, 3, -8));
+    }
+    if (this.spread > 1){
+      bullets.push(new Bullet(cx-2, this.y, -5.5, -7));
+      bullets.push(new Bullet(cx-2, this.y, 5.5, -7));
+    }
+  }
+  draw(){
+    ctx.save();
+    ctx.translate(this.x+this.w/2, this.y+this.h/2);
+    if (this.shield > 0){
+      ctx.strokeStyle = `rgba(120,220,255,${0.4+0.4*Math.sin(Date.now()/100)})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(0,0,28,0,Math.PI*2);
+      ctx.stroke();
+    }
+    ctx.fillStyle = '#4fd1ff';
+    ctx.beginPath();
+    ctx.moveTo(0,-20);
+    ctx.lineTo(16,18);
+    ctx.lineTo(6,12);
+    ctx.lineTo(-6,12);
+    ctx.lineTo(-16,18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#ffdf6b';
+    ctx.beginPath();
+    ctx.arc(0,4,4,0,Math.PI*2);
+    ctx.fill();
+    const flicker = 8 + Math.random()*6;
+    ctx.fillStyle = 'rgba(255,140,60,0.8)';
+    ctx.beginPath();
+    ctx.moveTo(-6,16); ctx.lineTo(6,16); ctx.lineTo(0,16+flicker);
+    ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  get box(){ return {x:this.x+8,y:this.y+6,w:this.w-16,h:this.h-14}; }
+}
+
+class Bullet {
+  constructor(x,y,vx,vy,enemy=false){
+    this.x=x; this.y=y; this.vx=vx; this.vy=vy; this.w=4; this.h=12; this.enemy=enemy;
+  }
+  update(){ this.x+=this.vx; this.y+=this.vy; }
+  draw(){
+    ctx.fillStyle = this.enemy ? '#ff5f5f' : '#7fffea';
+    ctx.shadowColor = this.enemy ? '#ff5f5f' : '#7fffea';
+    ctx.shadowBlur = 8;
+    ctx.fillRect(this.x, this.y, this.w, this.h);
+    ctx.shadowBlur = 0;
+  }
+  get box(){ return {x:this.x,y:this.y,w:this.w,h:this.h}; }
+  offscreen(){ return this.y < -20 || this.y > H+20 || this.x < -20 || this.x > W+20; }
+}
+
+class Enemy {
+  constructor(x,y,type,level){
+    this.x=x; this.y=y; this.type=type;
+    this.w = type==='tank' ? 44 : 32;
+    this.h = this.w;
+    this.baseSpeed = (type==='fast' ? 2.6 : type==='tank' ? 1.0 : 1.6) + level*0.08;
+    this.hp = type==='tank' ? 4 : type==='fast' ? 1 : 2;
+    this.maxHp = this.hp;
+    this.shootTimer = Math.random()*90+40;
+    this.phase = Math.random()*Math.PI*2;
+    this.dir = Math.random()<0.5?-1:1;
+  }
+  update(){
+    this.y += this.baseSpeed;
+    if (this.type==='fast'){
+      this.x += Math.sin(this.y/28+this.phase)*3*this.dir;
+    }
+    this.shootTimer--;
+    if (this.shootTimer <= 0 && this.y > 0 && this.y < H-100){
+      this.shootTimer = 90 + Math.random()*70;
+      const dx = (player.x+player.w/2) - (this.x+this.w/2);
+      const dy = (player.y+player.h/2) - (this.y+this.h/2);
+      const dist = Math.hypot(dx,dy)||1;
+      enemyBullets.push(new Bullet(this.x+this.w/2-2, this.y+this.h/2, (dx/dist)*3.4, (dy/dist)*3.4, true));
+    }
+  }
+  draw(){
+    ctx.save();
+    ctx.translate(this.x+this.w/2, this.y+this.h/2);
+    ctx.rotate(Math.PI);
+    const color = this.type==='tank' ? '#c34dff' : this.type==='fast' ? '#ff9a3d' : '#ff5f7a';
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(0,-this.w/2.2);
+    ctx.lineTo(this.w/2,this.w/2.5);
+    ctx.lineTo(0,this.w/4);
+    ctx.lineTo(-this.w/2,this.w/2.5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+    if (this.hp < this.maxHp){
+      ctx.fillStyle = '#222';
+      ctx.fillRect(this.x, this.y-8, this.w, 4);
+      ctx.fillStyle = '#5fff8f';
+      ctx.fillRect(this.x, this.y-8, this.w*(this.hp/this.maxHp), 4);
+    }
+  }
+  get box(){ return {x:this.x,y:this.y,w:this.w,h:this.h}; }
+}
+
+class PowerUp {
+  constructor(x,y,kind){
+    this.x=x; this.y=y; this.kind=kind; this.w=22; this.h=22; this.speed=1.6;
+  }
+  update(){ this.y += this.speed; }
+  draw(){
+    const colors = { spread:'#ffdf6b', shield:'#7fd3ff', life:'#ff6b9a', rapid:'#7fffea' };
+    ctx.fillStyle = colors[this.kind];
+    ctx.shadowColor = colors[this.kind];
+    ctx.shadowBlur = 12;
+    ctx.beginPath();
+    ctx.arc(this.x+this.w/2, this.y+this.h/2, this.w/2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = '#0a0e27';
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    const letter = { spread:'S', shield:'D', life:'+', rapid:'R' }[this.kind];
+    ctx.fillText(letter, this.x+this.w/2, this.y+this.h/2+4);
+  }
+  get box(){ return {x:this.x,y:this.y,w:this.w,h:this.h}; }
+}
+
+class Particle {
+  constructor(x,y,color){
+    this.x=x; this.y=y;
+    this.vx=(Math.random()-0.5)*6;
+    this.vy=(Math.random()-0.5)*6;
+    this.life=30; this.color=color;
+  }
+  update(){ this.x+=this.vx; this.y+=this.vy; this.life--; this.vx*=0.95; this.vy*=0.95; }
+  draw(){
+    ctx.globalAlpha = Math.max(this.life/30,0);
+    ctx.fillStyle = this.color;
+    ctx.fillRect(this.x,this.y,3,3);
+    ctx.globalAlpha = 1;
+  }
+}
+
+let player, bullets, enemyBullets, enemies, powerUps, particles, stars;
+let score, level, lives, running, spawnTimer, enemiesToSpawn, waveInProgress, waveBreakTimer;
+
+function initGame(){
+  player = new Player();
+  bullets = []; enemyBullets = []; enemies = []; powerUps = []; particles = [];
+  stars = Array.from({length:100}, () => new Star());
+  score = 0; level = 1; lives = 3; running = true;
+  waveBreakTimer = 60;
+  startWave();
+  updateHud();
+}
+
+function startWave(){
+  enemiesToSpawn = 6 + level*2;
+  spawnTimer = 0;
+  waveInProgress = true;
+}
+
+function spawnEnemy(){
+  const roll = Math.random();
+  let type = 'basic';
+  if (level >= 2 && roll < 0.25) type = 'fast';
+  if (level >= 3 && roll > 0.8) type = 'tank';
+  const x = Math.random()*(W-40);
+  enemies.push(new Enemy(x, -40, type, level));
+}
+
+function maybeDropPowerUp(x,y){
+  if (Math.random() < 0.16){
+    const kinds = ['spread','shield','life','rapid'];
+    const kind = kinds[Math.floor(Math.random()*kinds.length)];
+    powerUps.push(new PowerUp(x,y,kind));
+  }
+}
+
+function explode(x,y,color){
+  for (let i=0;i<14;i++) particles.push(new Particle(x,y,color));
+}
+
+function updateHud(){
+  scoreEl.textContent = score;
+  levelEl.textContent = level;
+  livesEl.textContent = lives;
+}
+
+function endGame(){
+  running = false;
+  finalStats.classList.remove('hidden');
+  finalStats.innerHTML = `Konečné skóre: <b>${score}</b> &nbsp; | &nbsp; Dosažený level: <b>${level}</b>`;
+  const best = Math.max(score, parseInt(localStorage.getItem('starDefenderBest')||'0'));
+  try { localStorage.setItem('starDefenderBest', best); } catch(e){}
+  document.querySelector('#overlay h1').textContent = 'KONEC HRY';
+  startBtn.textContent = 'HRÁT ZNOVU';
+  overlay.style.display = 'flex';
+}
+
+function loop(){
+  if (!running){ return; }
+  ctx.clearRect(0,0,W,H);
+
+  stars.forEach(s => { s.update(); s.draw(); });
+
+  player.update();
+  player.draw();
+
+  if (waveInProgress){
+    spawnTimer--;
+    if (spawnTimer <= 0 && enemiesToSpawn > 0){
+      spawnEnemy();
+      enemiesToSpawn--;
+      spawnTimer = Math.max(35 - level*2, 12);
+    }
+    if (enemiesToSpawn <= 0 && enemies.length === 0){
+      waveInProgress = false;
+      waveBreakTimer = 90;
+    }
+  } else {
+    waveBreakTimer--;
+    if (waveBreakTimer <= 0){
+      level++;
+      updateHud();
+      startWave();
+    }
+  }
+
+  bullets.forEach(b => { b.update(); b.draw(); });
+  bullets = bullets.filter(b => !b.offscreen());
+
+  enemyBullets.forEach(b => { b.update(); b.draw(); });
+  enemyBullets = enemyBullets.filter(b => !b.offscreen());
+
+  enemies.forEach(en => { en.update(); en.draw(); });
+
+  powerUps.forEach(p => { p.update(); p.draw(); });
+  powerUps = powerUps.filter(p => p.y < H+30);
+
+  particles.forEach(p => { p.update(); p.draw(); });
+  particles = particles.filter(p => p.life > 0);
+
+  // bullet vs enemy
+  for (let i=enemies.length-1;i>=0;i--){
+    const en = enemies[i];
+    for (let j=bullets.length-1;j>=0;j--){
+      const b = bullets[j];
+      if (aabb(b.box, en.box)){
+        bullets.splice(j,1);
+        en.hp--;
+        explode(b.x, b.y, '#ffdf6b');
+        if (en.hp <= 0){
+          score += en.type==='tank' ? 60 : en.type==='fast' ? 35 : 20;
+          explode(en.x+en.w/2, en.y+en.h/2, '#ff8f6b');
+          maybeDropPowerUp(en.x, en.y);
+          enemies.splice(i,1);
+          updateHud();
+        }
+        break;
+      }
+    }
+    if (enemies[i] && enemies[i].y > H){
+      enemies.splice(i,1);
+    }
+  }
+
+  // enemy reaches bottom collides with player area -> handled by bullet/player collisions below
+  // enemy bullets vs player
+  for (let i=enemyBullets.length-1;i>=0;i--){
+    if (aabb(enemyBullets[i].box, player.box)){
+      enemyBullets.splice(i,1);
+      hitPlayer();
+    }
+  }
+
+  // enemy body vs player
+  for (let i=enemies.length-1;i>=0;i--){
+    if (aabb(enemies[i].box, player.box)){
+      explode(enemies[i].x+enemies[i].w/2, enemies[i].y+enemies[i].h/2, '#ff8f6b');
+      enemies.splice(i,1);
+      hitPlayer();
+    }
+  }
+
+  // powerups vs player
+  for (let i=powerUps.length-1;i>=0;i--){
+    if (aabb(powerUps[i].box, player.box)){
+      applyPowerUp(powerUps[i].kind);
+      powerUps.splice(i,1);
+    }
+  }
+
+  if (running) requestAnimationFrame(loop);
+}
+
+function aabb(a,b){
+  return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function hitPlayer(){
+  if (player.shield > 0) return;
+  lives--;
+  updateHud();
+  explode(player.x+player.w/2, player.y+player.h/2, '#7fd3ff');
+  if (lives <= 0){
+    endGame();
+  } else {
+    player.shield = 90;
+  }
+}
+
+function applyPowerUp(kind){
+  if (kind === 'spread') player.spread = Math.min(player.spread+1, 2);
+  if (kind === 'shield') player.shield = 180;
+  if (kind === 'life') { lives = Math.min(lives+1,5); updateHud(); }
+  if (kind === 'rapid') player.fireRate = Math.max(player.fireRate-3, 6);
+}
+
+startBtn.addEventListener('click', () => {
+  overlay.style.display = 'none';
+  finalStats.classList.add('hidden');
+  initGame();
+  loop();
+});
+</script>
+</body>
+</html>
