@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bažinná Aréna - Detailní Les</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background-color: #030804;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; font-family: 'Courier New', monospace;
+            color: #00ff88; overflow: hidden;
+        }
+        #game-container {
+            position: relative; width: 800px; height: 600px;
+            border: 4px solid #142e11;
+            box-shadow: 0 0 45px rgba(0, 255, 136, 0.15), inset 0 0 60px rgba(0,0,0,0.6);
+        }
+        canvas { display: block; }
+        #ui {
+            position: absolute; top: 10px; left: 15px; right: 15px;
+            display: flex; justify-content: space-between; align-items: center;
+            font-weight: bold; font-size: 15px; pointer-events: none;
+            text-shadow: 2px 2px 4px #000; z-index: 10;
+        }
+        #ui .grp { background: rgba(4,12,4,0.45); padding: 5px 12px; border-radius: 5px; border: 1px solid rgba(0,255,136,0.15); }
+        #shells { display:inline-flex; gap:3px; vertical-align:middle; margin-left:4px; }
+        .shell { width:8px; height:13px; border-radius:2px; display:inline-block; background:#c0392b; border:1px solid #6b1c12; }
+        .shell.spent { background:#333; border-color:#111; }
+        
+        .btn-game {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 28px;
+            font-family: 'Courier New', monospace;
+            font-size: 18px;
+            font-weight: bold;
+            color: #00ff88;
+            background: #0d2013;
+            border: 2px solid #00ff88;
+            border-radius: 6px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
+            transition: all 0.2s ease;
+            z-index: 20;
+        }
+        .btn-game:hover {
+            background: #00ff88;
+            color: #030804;
+            box-shadow: 0 0 25px rgba(0, 255, 136, 0.7);
+        }
+        #start-btn { top: 380px; }
+        #restart-btn { top: 400px; display: none; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="ui">
+        <span class="grp">ŽIVOTY: <span id="hp">5/5</span></span>
+        <span class="grp">ÚROVEŇ: <span id="level">1</span>/10</span>
+        <span class="grp">ZBRAŇ: <span id="weapon">Žádná</span><span id="shells"></span></span>
+        <span class="grp">SKÓRE: <span id="score">0</span></span>
+    </div>
+    <button id="start-btn" class="btn-game" onclick="startGame()">SPUSTIT HRU</button>
+    <button id="restart-btn" class="btn-game" onclick="resetGame()">HRÁT ZNOVU</button>
+    <canvas id="canvas" width="800" height="600"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+const hpEl = document.getElementById('hp');
+const levelEl = document.getElementById('level');
+const weaponEl = document.getElementById('weapon');
+const shellsEl = document.getElementById('shells');
+const scoreEl = document.getElementById('score');
+const startBtn = document.getElementById('start-btn');
+const restartBtn = document.getElementById('restart-btn');
+
+let score = 0;
+let level = 1;
+let killCount = 0;
+let killsForBuff = 0;
+let killsForHeart = 0;
+
+let gameOver = false;
+let gameStarted = false;
+let isPaused = false;
+let gameTime = 0;
+
+const keys = { left: false, right: false, jump: false, jumpPressed: false };
+
+window.addEventListener('keydown', e => {
+    if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+    if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+    if (e.code === 'Space') {
+        if (!keys.jump) keys.jumpPressed = true;
+        keys.jump = true;
+    }
+    if (e.code === 'KeyP' || e.code === 'Escape') {
+        if (gameStarted && !gameOver) isPaused = !isPaused;
+    }
+});
+window.addEventListener('keyup', e => {
+    if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+    if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+    if (e.code === 'Space') { keys.jump = false; keys.jumpPressed = false; }
+});
+
+// Střední horní platforma navrácena na původní rozměry
+const platforms = [
+    { x: 0, y: 130, w: 220, h: 18 },
+    { x: 0, y: 280, w: 160, h: 18 },
+    { x: 0, y: 430, w: 200, h: 18 },
+    { x: 580, y: 140, w: 220, h: 18 },
+    { x: 640, y: 290, w: 160, h: 18 },
+    { x: 590, y: 440, w: 210, h: 18 },
+    { x: 270, y: 210, w: 260, h: 18 }, // Navráceno na původní šířku
+    { x: 310, y: 360, w: 180, h: 18 },
+    { x: 270, y: 530, w: 260, h: 18 }
+];
+
+const vines = [];
+for (let i = 0; i < 14; i++) {
+    vines.push({
+        x: 20 + i * 58 + Math.random() * 20,
+        len: 90 + Math.random() * 190,
+        sway: Math.random() * Math.PI * 2,
+        speed: 0.4 + Math.random() * 0.5,
+        thickness: 3 + Math.random() * 3,
+        leafSeed: Math.random()
+    });
+}
+const fireflies = [];
+for (let i = 0; i < 18; i++) {
+    fireflies.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: 1 + Math.random() * 1.5,
+        phase: Math.random() * Math.PI * 2,
+        speed: 0.2 + Math.random() * 0.3,
+        driftX: (Math.random() - 0.5) * 0.6,
+        driftY: (Math.random() - 0.5) * 0.4
+    });
+}
+const spores = [];
+for (let i = 0; i < 40; i++) {
+    spores.push({
+        x: Math.random() * canvas.width,
+        y: Math.random() * canvas.height,
+        r: 0.6 + Math.random() * 1.2,
+        vy: 0.15 + Math.random() * 0.25,
+        vx: (Math.random() - 0.5) * 0.2,
+        alpha: 0.15 + Math.random() * 0.3
+    });
+}
+
+let player = {
+    x: 380, y: 150, w: 26, h: 36, vx: 0, vy: 0,
+    baseSpeed: 4, speed: 4, jumpPower: -10, grounded: false, facingRight: true,
+    hp: 5, maxHp: 5, shieldTimer: 0, weapon: null, ammo: 0,
+    attackCooldown: 0, animFrame: 0,
+    doubleJumpUnlocked: false, doubleJumpAvailable: false,
+    speedBuffTimer: 0, doubleJumpBuffTimer: 0
+};
+
+let monsters = [];
+let items = [];
+let bullets = [];
+let hitSparks = [];
+
+let weaponSpawnTimer = 0;
+let monsterSpawnTimer = 0;
+
+function startGame() {
+    gameStarted = true;
+    startBtn.style.display = 'none';
+}
+
+function resetGame() {
+    score = 0;
+    level = 1;
+    killCount = 0;
+    killsForBuff = 0;
+    killsForHeart = 0;
+    gameOver = false;
+    isPaused = false;
+    monsters = [];
+    items = [];
+    bullets = [];
+    hitSparks = [];
+    
+    player = {
+        x: 380, y: 150, w: 26, h: 36, vx: 0, vy: 0,
+        baseSpeed: 4, speed: 4, jumpPower: -10, grounded: false, facingRight: true,
+        hp: 5, maxHp: 5, shieldTimer: 0, weapon: null, ammo: 0,
+        attackCooldown: 0, animFrame: 0,
+        doubleJumpUnlocked: false, doubleJumpAvailable: false,
+        speedBuffTimer: 0, doubleJumpBuffTimer: 0
+    };
+    
+    restartBtn.style.display = 'none';
+}
+
+function spawnMonsters() {
+    const maxMonsters = Math.min(10, 3 + Math.floor(level * 0.7));
+    if (monsters.length >= maxMonsters) return;
+
+    const type = Math.random() < 0.45 ? 'fly' : 'walk';
+    const side = Math.random() < 0.5 ? -30 : 800;
+    const y = Math.random() * 250 + 80;
+    
+    const speedMult = 1 + (level - 1) * 0.15;
+
+    monsters.push({
+        x: side, y: y, w: type === 'fly' ? 28 : 26, h: type === 'fly' ? 24 : 26,
+        type: type, vx: 0, vy: 0, 
+        speed: (type === 'fly' ? 2.0 : 1.6) * speedMult,
+        jumpPower: -8.8,
+        grounded: false,
+        jumpTimer: 0,
+        animFrame: Math.random() * 100
+    });
+}
+
+function dropBuffFromSky() {
+    const types = ['speed', 'double_jump', 'shield', 'full_heal'];
+    const selected = types[Math.floor(Math.random() * types.length)];
+    const spawnX = Math.random() * 600 + 100;
+    items.push({ x: spawnX, y: -20, w: 22, h: 22, type: selected, vy: 1.5 });
+}
+
+function dropHeartFromSky() {
+    const spawnX = Math.random() * 600 + 100;
+    items.push({ x: spawnX, y: -20, w: 20, h: 20, type: 'heart', vy: 1.5 });
+}
+
+function spawnWeaponItem() {
+    const weaponTypes = ['knife', 'pistol', 'shotgun'];
+    const selected = weaponTypes[Math.floor(Math.random() * weaponTypes.length)];
+    const spawnX = Math.random() * 500 + 150;
+    items.push({ x: spawnX, y: -20, w: 22, h: 22, type: selected, vy: 1.5 });
+}
+
+function teleportToTop(entity) {
+    entity.x = canvas.width / 2 - entity.w / 2;
+    entity.y = 80;
+    entity.vy = 0;
+    if (entity === player) {
+        player.shieldTimer = 60;
+    }
+}
+
+function update() {
+    if (!gameStarted || gameOver || isPaused) return;
+    gameTime++;
+
+    level = Math.min(10, Math.floor(score / 750) + 1);
+    levelEl.innerText = level;
+
+    // Časovače Buffů
+    if (player.speedBuffTimer > 0) {
+        player.speedBuffTimer--;
+        player.speed = player.baseSpeed * 1.6;
+    } else {
+        player.speed = player.baseSpeed;
+    }
+
+    if (player.doubleJumpBuffTimer > 0) {
+        player.doubleJumpBuffTimer--;
+        player.doubleJumpUnlocked = true;
+    } else {
+        player.doubleJumpUnlocked = false;
+    }
+
+    // Pohyb hráče
+    if (keys.left) { player.vx = -player.speed; player.facingRight = false; player.animFrame += 0.2; }
+    else if (keys.right) { player.vx = player.speed; player.facingRight = true; player.animFrame += 0.2; }
+    else { player.vx = 0; }
+
+    // Skok & Dvojitý skok
+    if (keys.jumpPressed) {
+        if (player.grounded) {
+            player.vy = player.jumpPower;
+            player.grounded = false;
+            player.doubleJumpAvailable = player.doubleJumpUnlocked;
+        } else if (player.doubleJumpAvailable) {
+            player.vy = player.jumpPower * 0.9;
+            player.doubleJumpAvailable = false;
+            hitSparks.push({x: player.x + player.w/2, y: player.y + player.h, life: 10, color: '#00ffff'});
+        }
+        keys.jumpPressed = false;
+    }
+
+    player.vy += 0.42;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    if (player.shieldTimer > 0) player.shieldTimer--;
+    if (player.attackCooldown > 0) player.attackCooldown--;
+
+    player.grounded = false;
+    platforms.forEach(p => {
+        if (player.x < p.x + p.w && player.x + player.w > p.x &&
+            player.y + player.h > p.y && player.y + player.h < p.y + p.h + player.vy) {
+            if (player.vy > 0) { 
+                player.grounded = true; 
+                player.vy = 0; 
+                player.y = p.y - player.h; 
+                if (player.doubleJumpUnlocked) player.doubleJumpAvailable = true;
+            }
+        }
+    });
+
+    // Průchozí strany obrazovky
+    if (player.x + player.w < 0) player.x = canvas.width - 5;
+    else if (player.x > canvas.width) player.x = -player.w + 5;
+
+    // Teleportace z dolního prázdna
+    if (player.y > canvas.height - 20) {
+        teleportToTop(player);
+    }
+
+    // Útoky zbraní
+    if (player.weapon && player.attackCooldown <= 0) {
+        let nearestMonster = null, minDist = 9999;
+        monsters.forEach(m => {
+            let dist = Math.hypot((m.x + m.w/2) - (player.x + player.w/2), (m.y + m.h/2) - (player.y + player.h/2));
+            if (dist < minDist) { minDist = dist; nearestMonster = m; }
+        });
+        if (nearestMonster) {
+            let angle = Math.atan2((nearestMonster.y + nearestMonster.h/2) - (player.y + player.h/2),
+                                   (nearestMonster.x + nearestMonster.w/2) - (player.x + player.w/2));
+            if (player.weapon === 'knife' && minDist < 55) {
+                hitSparks.push({x: nearestMonster.x+nearestMonster.w/2, y: nearestMonster.y+nearestMonster.h/2, life:14, color:'#dddddd'});
+                killMonster(nearestMonster);
+                player.ammo--; player.attackCooldown = 18;
+            } else if (player.weapon === 'pistol' && minDist < 340) {
+                bullets.push({ x: player.x + player.w/2, y: player.y + player.h/2, vx: Math.cos(angle) * 10, vy: Math.sin(angle) * 10 });
+                player.ammo--; player.attackCooldown = 20;
+            } else if (player.weapon === 'shotgun' && minDist < 290) {
+                for (let i = -1; i <= 1; i++) {
+                    bullets.push({ x: player.x + player.w/2, y: player.y + player.h/2, vx: Math.cos(angle + i * 0.22) * 9, vy: Math.sin(angle + i * 0.22) * 9 });
+                }
+                player.ammo--; player.attackCooldown = 30;
+            }
+            if (player.ammo <= 0) player.weapon = null;
+        }
+    }
+
+    // Kulky
+    bullets.forEach((b, index) => {
+        b.x += b.vx; b.y += b.vy;
+        monsters.forEach((m) => {
+            if (b.x > m.x && b.x < m.x + m.w && b.y > m.y && b.y < m.y + m.h) {
+                hitSparks.push({x: m.x+m.w/2, y: m.y+m.h/2, life:14, color:'#ffdf6b'});
+                killMonster(m);
+                bullets.splice(index, 1);
+            }
+        });
+    });
+
+    // Monstra AI a kolize
+    monsters.forEach((m) => {
+        m.animFrame += 0.15;
+        let dx = (player.x + player.w/2) - (m.x + m.w/2);
+        let dy = (player.y + player.h/2) - (m.y + m.h/2);
+        let dist = Math.hypot(dx, dy);
+
+        if (m.type === 'fly') {
+            m.vx = (dx / dist) * m.speed; 
+            m.vy = (dy / dist) * m.speed;
+            m.x += m.vx; m.y += m.vy;
+        } else {
+            m.vx = dx > 0 ? m.speed : -m.speed;
+            m.vy += 0.42; 
+            m.x += m.vx; 
+            m.y += m.vy;
+
+            m.grounded = false;
+            platforms.forEach(p => {
+                if (m.x < p.x + p.w && m.x + m.w > p.x &&
+                    m.y + m.h > p.y && m.y + m.h < p.y + p.h + m.vy) {
+                    if (m.vy > 0) { m.grounded = true; m.vy = 0; m.y = p.y - m.h; }
+                }
+            });
+
+            m.jumpTimer++;
+            if (m.grounded && (dy < -30 || Math.random() < 0.03) && m.jumpTimer > 35) {
+                m.vy = m.jumpPower;
+                m.grounded = false;
+                m.jumpTimer = 0;
+            }
+
+            if (m.x + m.w < 0) m.x = canvas.width - 5;
+            else if (m.x > canvas.width) m.x = -m.w + 5;
+
+            if (m.y > canvas.height - 20) {
+                teleportToTop(m);
+            }
+        }
+
+        // Kolize hráče s monstrem
+        if (player.x < m.x + m.w && player.x + player.w > m.x &&
+            player.y < m.y + m.h && player.y + player.h > m.y) {
+            if (player.vy > 0 && player.y + player.h - player.vy <= m.y + 12) {
+                hitSparks.push({x: m.x+m.w/2, y: m.y+m.h/2, life:14, color:'#e8ffb0'});
+                killMonster(m);
+                player.vy = player.jumpPower * 0.75;
+            } else if (player.shieldTimer <= 0) {
+                player.hp--; 
+                player.shieldTimer = 50;
+                if (player.hp <= 0) {
+                    gameOver = true;
+                    restartBtn.style.display = 'block';
+                }
+            }
+        }
+    });
+
+    // Předměty & Power-upy kolize
+    items.forEach((item, index) => {
+        item.y += item.vy;
+        if (player.x < item.x + item.w && player.x + player.w > item.x &&
+            player.y < item.y + item.h && player.y + player.h > item.y) {
+            
+            if (item.type === 'ammo') {
+                // Náboje přidávají munici POUZE pokud má hráč zbraň, která NENÍ nůž
+                if (player.weapon && player.weapon !== 'knife') {
+                    player.ammo += 3;
+                }
+            } else if (item.type === 'speed') {
+                player.speedBuffTimer = 600; 
+            } else if (item.type === 'double_jump') {
+                player.doubleJumpBuffTimer = 600; 
+            } else if (item.type === 'shield') {
+                player.shieldTimer = 600; 
+            } else if (item.type === 'full_heal') {
+                if (player.maxHp < 7) player.maxHp++;
+                player.hp = player.maxHp;
+            } else if (item.type === 'heart') {
+                if (player.hp < player.maxHp) player.hp++;
+            } else {
+                player.weapon = item.type;
+                if (item.type === 'knife') player.ammo = 5;
+                if (item.type === 'pistol') player.ammo = 8;
+                if (item.type === 'shotgun') player.ammo = 5;
+            }
+
+            items.splice(index, 1);
+        }
+        if (item.y > canvas.height) items.splice(index, 1);
+    });
+
+    hitSparks.forEach(s => s.life--);
+    hitSparks = hitSparks.filter(s => s.life > 0);
+
+    // Monstra spawn
+    monsterSpawnTimer++;
+    if (monsters.length < 3 || monsterSpawnTimer > Math.max(35, 100 - level * 6)) {
+        spawnMonsters();
+        monsterSpawnTimer = 0;
+    }
+    
+    // Zbraně padají z nebe v časovém intervalu
+    weaponSpawnTimer++;
+    if (weaponSpawnTimer > 400) { 
+        spawnWeaponItem();
+        weaponSpawnTimer = 0; 
+    }
+
+    // UI Aktualizace
+    hpEl.innerText = `${player.hp}/${player.maxHp}`;
+    if (player.weapon === 'shotgun') {
+        weaponEl.innerText = 'BROKOVNICE';
+        shellsEl.innerHTML = Array.from({length: player.ammo}, () => `<span class="shell"></span>`).join('');
+    } else if (player.weapon) {
+        weaponEl.innerText = `${player.weapon === 'knife' ? 'NŮŽ' : 'PISTOLE'} (${player.ammo})`;
+        shellsEl.innerHTML = '';
+    } else {
+        weaponEl.innerText = 'Žádná';
+        shellsEl.innerHTML = '';
+    }
+    scoreEl.innerText = score;
+}
+
+function killMonster(m) {
+    monsters = monsters.filter(item => item !== m);
+    score += 100;
+    killCount++;
+    killsForBuff++;
+    killsForHeart++;
+    
+    // Zabití 15 monster -> Spadne Buff z nebe
+    if (killsForBuff >= 15) {
+        dropBuffFromSky();
+        killsForBuff = 0;
+    }
+
+    // Zabití 10 monster -> Spadne Srdce z nebe
+    if (killsForHeart >= 10) {
+        dropHeartFromSky();
+        killsForHeart = 0;
+    }
+
+    // Monstra zanechávají náboje
+    items.push({ x: m.x, y: m.y, w: 16, h: 16, type: 'ammo', vy: 1 });
+}
+
+// ================= VYKRESLOVÁNÍ =================
+
+function drawBackground() {
+    let grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    grad.addColorStop(0, '#0a1a10');
+    grad.addColorStop(0.5, '#071309');
+    grad.addColorStop(1, '#020604');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (let i = 0; i < 4; i++) {
+        const fy = 100 + i * 140 + Math.sin(gameTime * 0.004 + i) * 10;
+        const fog = ctx.createLinearGradient(0, fy - 40, 0, fy + 40);
+        fog.addColorStop(0, 'rgba(60,110,70,0)');
+        fog.addColorStop(0.5, `rgba(60,110,70,${0.05 + i * 0.01})`);
+        fog.addColorStop(1, 'rgba(60,110,70,0)');
+        ctx.fillStyle = fog;
+        ctx.fillRect(0, fy - 40, canvas.width, 80);
+    }
+
+    drawMegaTree();
+    drawVines();
+
+    spores.forEach(s => {
+        s.y -= s.vy; s.x += s.vx;
+        if (s.y < -5) { s.y = canvas.height + 5; s.x = Math.random() * canvas.width; }
+        ctx.fillStyle = `rgba(200,255,180,${s.alpha})`;
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    fireflies.forEach(f => {
+        f.phase += f.speed * 0.05;
+        f.x += f.driftX; f.y += f.driftY;
+        if (f.x < 0) f.x = canvas.width; if (f.x > canvas.width) f.x = 0;
+        if (f.y < 0) f.y = canvas.height; if (f.y > canvas.height) f.y = 0;
+        const glow = 0.4 + Math.sin(f.phase) * 0.4;
+        ctx.fillStyle = `rgba(220,255,140,${glow})`;
+        ctx.shadowColor = '#d4ff8c';
+        ctx.shadowBlur = 6;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+    });
+}
+
+function drawMegaTree() {
+    const t = gameTime * 0.001;
+
+    ctx.fillStyle = '#0d2013';
+    ctx.beginPath();
+    ctx.moveTo(-20, canvas.height);
+    ctx.bezierCurveTo(-10, 380, 30, 260, 70, 150);
+    ctx.bezierCurveTo(95, 80, 90, 20, 130, -20);
+    ctx.lineTo(-20, -20);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.moveTo(canvas.width + 20, canvas.height);
+    ctx.bezierCurveTo(canvas.width + 10, 380, canvas.width - 30, 260, canvas.width - 70, 150);
+    ctx.bezierCurveTo(canvas.width - 95, 80, canvas.width - 90, 20, canvas.width - 130, -20);
+    ctx.lineTo(canvas.width + 20, -20);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(30,70,35,0.5)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.moveTo(10 + i * 12, canvas.height);
+        ctx.quadraticCurveTo(40 + i * 10 + Math.sin(t + i) * 6, 300, 90 + i * 5, 40);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(canvas.width - 10 - i * 12, canvas.height);
+        ctx.quadraticCurveTo(canvas.width - 40 - i * 10 - Math.sin(t + i) * 6, 300, canvas.width - 90 - i * 5, 40);
+        ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#132a17';
+    ctx.lineWidth = 22;
+    ctx.beginPath();
+    ctx.moveTo(60, 10);
+    ctx.bezierCurveTo(250, -40 + Math.sin(t) * 6, 550, -40 + Math.cos(t*0.8) * 6, canvas.width - 60, 10);
+    ctx.stroke();
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = '#1c3a20';
+    ctx.beginPath();
+    ctx.moveTo(60, 14);
+    ctx.bezierCurveTo(250, -34 + Math.sin(t) * 6, 550, -34 + Math.cos(t*0.8) * 6, canvas.width - 60, 14);
+    ctx.stroke();
+
+    ctx.fillStyle = '#1f4d24';
+    for (let i = 0; i < 22; i++) {
+        const bx = 70 + i * ((canvas.width - 140) / 21);
+        const bendY = -10 + Math.sin(t + i * 0.5) * 5;
+        const by = 5 + Math.sin((i / 21) * Math.PI) * -25 + bendY;
+        ctx.beginPath();
+        ctx.ellipse(bx, by + 18, 20, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.fillStyle = '#255c2b';
+    for (let i = 0; i < 18; i++) {
+        const bx = 90 + i * ((canvas.width - 180) / 17);
+        const by = 30 + Math.sin((i / 17) * Math.PI) * -18;
+        ctx.beginPath();
+        ctx.ellipse(bx, by, 14, 9, 0.3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+}
+
+function drawVines() {
+    vines.forEach(v => {
+        v.sway += 0.006 * v.speed;
+        const swayX = Math.sin(v.sway) * 14;
+        const midX = v.x + swayX * 0.6;
+        const endX = v.x + swayX;
+
+        ctx.strokeStyle = '#173d1c';
+        ctx.lineWidth = v.thickness;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(v.x, -5);
+        ctx.quadraticCurveTo(midX, v.len * 0.55, endX, v.len);
+        ctx.stroke();
+
+        for (let j = 0.2; j < 1; j += 0.22) {
+            const lx = v.x + (endX - v.x) * j + Math.sin(v.sway + j * 5) * 4;
+            const ly = v.len * j;
+            ctx.fillStyle = j + v.leafSeed > 0.9 ? '#2d6b33' : '#1f5324';
+            ctx.beginPath();
+            ctx.ellipse(lx + 6, ly, 6, 3, 0.6, 0, Math.PI * 2);
+            ctx.ellipse(lx - 6, ly + 4, 6, 3, -0.6, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    });
+}
+
+function drawVoid() {
+    const voidGlow = ctx.createLinearGradient(0, canvas.height - 70, 0, canvas.height);
+    voidGlow.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    voidGlow.addColorStop(0.5, 'rgba(2, 10, 4, 0.7)');
+    voidGlow.addColorStop(1, 'rgba(0, 0, 0, 0.98)');
+    ctx.fillStyle = voidGlow;
+    ctx.fillRect(0, canvas.height - 70, canvas.width, 70);
+}
+
+function drawPlatforms() {
+    platforms.forEach(p => {
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        ctx.fillRect(p.x + 3, p.y + p.h, p.w - 6, 6);
+
+        ctx.fillStyle = '#301e13';
+        ctx.fillRect(p.x, p.y + 4, p.w, p.h - 4);
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        for (let lx = p.x + 8; lx < p.x + p.w; lx += 22) {
+            ctx.beginPath(); ctx.moveTo(lx, p.y + 5); ctx.lineTo(lx, p.y + p.h - 2); ctx.stroke();
+        }
+
+        ctx.fillStyle = '#275e21';
+        ctx.fillRect(p.x, p.y, p.w, 6);
+        ctx.fillStyle = '#2f7128';
+        for (let mx = p.x + 4; mx < p.x + p.w - 4; mx += 10) {
+            ctx.fillRect(mx, p.y - 1, 4, 3);
+        }
+
+        ctx.fillStyle = '#36802d';
+        for (let bx = p.x + 10; bx < p.x + p.w - 10; bx += 30) {
+            ctx.beginPath(); ctx.arc(bx, p.y - 2, 7, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#4a9a3e';
+            ctx.beginPath(); ctx.arc(bx - 2, p.y - 4, 3, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#36802d';
+        }
+    });
+}
+
+function drawItems() {
+    items.forEach(item => {
+        ctx.save();
+        const bob = Math.sin(gameTime * 0.05 + item.x) * 2;
+        const cx = item.x + 11;
+        const cy = item.y + 11 + bob;
+
+        if (item.type === 'ammo') {
+            ctx.fillStyle = '#f39c12';
+            ctx.fillRect(cx - 3, cy - 2, 6, 8);
+            ctx.fillStyle = '#d35400';
+            ctx.fillRect(cx - 3, cy + 4, 6, 2);
+            ctx.fillStyle = '#f1c40f';
+            ctx.beginPath(); ctx.arc(cx, cy - 2, 3, Math.PI, 0); ctx.fill();
+        } else if (item.type === 'speed') {
+            ctx.fillStyle = '#2ecc71';
+            ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('>>', cx, cy);
+        } else if (item.type === 'double_jump') {
+            ctx.fillStyle = '#3498db';
+            ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px Courier New'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('2X', cx, cy);
+        } else if (item.type === 'shield') {
+            ctx.fillStyle = '#9b59b6';
+            ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(cx, cy, 5, 0, Math.PI * 2); ctx.stroke();
+        } else if (item.type === 'full_heal') {
+            ctx.fillStyle = '#e74c3c';
+            ctx.beginPath(); ctx.arc(cx, cy, 11, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(cx - 2, cy - 6, 4, 12); ctx.fillRect(cx - 6, cy - 2, 12, 4);
+        } else if (item.type === 'heart') {
+            ctx.fillStyle = '#ff1a53';
+            ctx.shadowColor = '#ff1a53'; ctx.shadowBlur = 6;
+            ctx.beginPath();
+            ctx.arc(item.x + 10, item.y + 7 + bob, 6, 0, Math.PI * 2);
+            ctx.arc(item.x + 4, item.y + 7 + bob, 6, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(item.x - 2, item.y + 9 + bob);
+            ctx.lineTo(item.x + 7, item.y + 18 + bob);
+            ctx.lineTo(item.x + 16, item.y + 9 + bob);
+            ctx.fill();
+            ctx.shadowBlur = 0;
+        } else if (item.type === 'knife') {
+            ctx.translate(cx, cy);
+            ctx.rotate(-0.6);
+            const bladeGrad = ctx.createLinearGradient(-2, -12, 4, -12);
+            bladeGrad.addColorStop(0, '#eef2f3'); bladeGrad.addColorStop(0.5, '#ffffff'); bladeGrad.addColorStop(1, '#9aa5a8');
+            ctx.fillStyle = bladeGrad;
+            ctx.beginPath();
+            ctx.moveTo(-2, 2); ctx.lineTo(2, 2); ctx.lineTo(1.2, -14); ctx.lineTo(0, -17); ctx.lineTo(-1.2, -14);
+            ctx.closePath(); ctx.fill();
+            ctx.fillStyle = '#5a5a5a'; ctx.fillRect(-3, 2, 6, 3);
+            ctx.fillStyle = '#7a4a26'; ctx.fillRect(-2.5, 5, 5, 9);
+        } else if (item.type === 'pistol') {
+            ctx.translate(cx, cy);
+            ctx.fillStyle = '#3a3a3d'; ctx.fillRect(-10, -3, 16, 6);
+            ctx.fillStyle = '#232326'; ctx.fillRect(4, -5, 4, 4);
+            ctx.fillStyle = '#2e2e30';
+            ctx.beginPath(); ctx.moveTo(-6, 3); ctx.lineTo(-8, 11); ctx.lineTo(-3, 11); ctx.lineTo(-2, 3); ctx.closePath(); ctx.fill();
+        } else if (item.type === 'shotgun') {
+            ctx.translate(cx, cy);
+            ctx.fillStyle = '#555559'; ctx.fillRect(-11, -4, 20, 3.4); ctx.fillRect(-11, -0.2, 20, 3.4);
+            ctx.fillStyle = '#7a4a26';
+            ctx.beginPath(); ctx.moveTo(-11, -1); ctx.lineTo(-19, 6); ctx.lineTo(-12, 6.5); ctx.lineTo(-9, -1); ctx.closePath(); ctx.fill();
+        }
+        ctx.restore();
+    });
+}
+
+function drawBullets() {
+    bullets.forEach(b => {
+        ctx.save();
+        ctx.shadowColor = '#ffff55'; ctx.shadowBlur = 8;
+        ctx.fillStyle = '#ffff88';
+        ctx.beginPath(); ctx.arc(b.x, b.y, 3.5, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    });
+}
+
+function drawHitSparks() {
+    hitSparks.forEach(s => {
+        ctx.globalAlpha = s.life / 14;
+        ctx.fillStyle = s.color;
+        for (let i = 0; i < 5; i++) {
+            const a = (i / 5) * Math.PI * 2 + s.life;
+            ctx.fillRect(s.x + Math.cos(a) * (14 - s.life), s.y + Math.sin(a) * (14 - s.life), 3, 3);
+        }
+        ctx.globalAlpha = 1;
+    });
+}
+
+function drawMonsters() {
+    monsters.forEach(m => {
+        ctx.save();
+        if (m.type === 'fly') {
+            let wingY = Math.sin(m.animFrame) * 6;
+            ctx.fillStyle = '#6a1acc';
+            ctx.beginPath(); ctx.arc(m.x + 14, m.y + 13, 12, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#8822ee';
+            ctx.beginPath(); ctx.arc(m.x + 14, m.y + 12, 11, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'rgba(170,68,255,0.7)';
+            ctx.beginPath();
+            ctx.ellipse(m.x + 2, m.y + 8 + wingY, 9, 5, -0.4, 0, Math.PI * 2);
+            ctx.ellipse(m.x + 26, m.y + 8 + wingY, 9, 5, 0.4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffff00';
+            ctx.fillRect(m.x + 8, m.y + 8, 4, 4); ctx.fillRect(m.x + 16, m.y + 8, 4, 4);
+        } else {
+            let squash = Math.sin(m.animFrame) * 2;
+            ctx.fillStyle = '#0a8a30';
+            ctx.beginPath(); ctx.ellipse(m.x + 13, m.y + 17 + squash/2, 13, 11 - squash/2, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#11cc44';
+            ctx.beginPath(); ctx.ellipse(m.x + 13, m.y + 15 + squash/2, 13, 11 - squash/2, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(m.x + 7, m.y + 8, 4, 4); ctx.fillRect(m.x + 15, m.y + 8, 4, 4);
+        }
+        ctx.restore();
+    });
+}
+
+function drawPlayer() {
+    ctx.save();
+    let px = player.x, py = player.y;
+
+    if (player.shieldTimer > 0) {
+        ctx.strokeStyle = `rgba(0,255,255,${0.4 + Math.sin(gameTime*0.3)*0.3})`;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(px + 13, py + 18, 24, 0, Math.PI * 2); ctx.stroke();
+    }
+
+    ctx.fillStyle = player.speedBuffTimer > 0 ? '#2ecc71' : '#009944';
+    ctx.fillRect(px + 4, py + 14, 18, 14);
+    ctx.fillStyle = '#00ff88';
+    ctx.beginPath(); ctx.arc(px + 13, py + 10, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff';
+    let eyeOff = player.facingRight ? 3 : -3;
+    ctx.fillRect(px + 11 + eyeOff, py + 8, 3, 3);
+
+    if (player.weapon) {
+        const dir = player.facingRight ? 1 : -1;
+        ctx.save();
+        ctx.translate(px + 13 + dir * 12, py + 22);
+        ctx.scale(dir, 1);
+        if (player.weapon === 'knife') {
+            ctx.fillStyle = '#e8eef0'; ctx.fillRect(0, -2, 10, 3);
+            ctx.fillStyle = '#7a4a26'; ctx.fillRect(-4, -2, 4, 3);
+        } else if (player.weapon === 'pistol') {
+            ctx.fillStyle = '#3a3a3d'; ctx.fillRect(-2, -2, 12, 4);
+            ctx.fillStyle = '#2e2e30'; ctx.fillRect(-4, 2, 4, 6);
+        } else if (player.weapon === 'shotgun') {
+            ctx.fillStyle = '#555559'; ctx.fillRect(-2, -3, 16, 2.6); ctx.fillRect(-2, 0, 16, 2.6);
+            ctx.fillStyle = '#7a4a26'; ctx.fillRect(-8, -1, 6, 5);
+        }
+        ctx.restore();
+    }
+
+    ctx.fillStyle = '#005522';
+    let legMove = Math.sin(player.animFrame) * 4;
+    ctx.fillRect(px + 6, py + 28, 5, 8 + (player.vx !== 0 ? legMove : 0));
+    ctx.fillRect(px + 15, py + 28, 5, 8 - (player.vx !== 0 ? legMove : 0));
+
+    ctx.restore();
+}
+
+function draw() {
+    drawBackground();
+    drawVoid();
+    drawPlatforms();
+    drawItems();
+    drawBullets();
+    drawMonsters();
+    drawPlayer();
+    drawHitSparks();
+
+    const vig = ctx.createRadialGradient(400, 300, 200, 400, 300, 480);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Úvodní Obrazovka
+    if (!gameStarted) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#00ff88';
+        ctx.font = '28px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('BAŽINNÁ ARÉNA', canvas.width / 2, 150);
+        
+        ctx.font = '14px Courier New';
+        ctx.fillStyle = '#ffffff';
+        ctx.fillText('POWER-UPY (Padají z nebe po 15 zabitích):', canvas.width / 2, 220);
+        ctx.fillText('🟢 Rychlost (10s) | 🔵 Dvojitý Skok (10s)', canvas.width / 2, 250);
+        ctx.fillText('🟣 Štít (10s) | 🔴 Plné Zdraví + Max HP', canvas.width / 2, 280);
+        ctx.fillText('Po 10 zabitích spadne ŽIVOT (Srdce) z nebe!', canvas.width / 2, 320);
+        ctx.textAlign = 'start';
+    }
+
+    // Obrazovka Pozastavení (PAUSE)
+    if (isPaused && !gameOver) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#00ff88';
+        ctx.font = '32px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('PAUZA', canvas.width / 2, 280);
+        ctx.font = '16px Courier New';
+        ctx.fillText('Stiskni P nebo ESC pro pokračování', canvas.width / 2, 320);
+        ctx.textAlign = 'start';
+    }
+
+    // Obrazovka Konec Hry
+    if (gameOver) {
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = '#ff0055';
+        ctx.font = '32px Courier New';
+        ctx.textAlign = 'center';
+        ctx.fillText('KONEC HRY', canvas.width / 2, 240);
+        ctx.fillStyle = '#ffffff';
+        ctx.font = '18px Courier New';
+        ctx.fillText(`Dosáhl jsi skóre: ${score}`, canvas.width / 2, 290);
+        ctx.fillText(`Konečná Úroveň: ${level}`, canvas.width / 2, 320);
+        ctx.textAlign = 'start';
+    }
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
