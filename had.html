@@ -101,6 +101,7 @@
     <canvas id="platno" width="400" height="400"></canvas>
     <div id="info">WASD nebo ŠIPKY pro ovládání</div>
     <a href="index.html">← ZPĚT DO MENU</a>
+      <button id="startBtn">SPUSTIT HRU</button>
 
     <div id="game-over">
         <h2>KONEC HRY</h2>
@@ -114,7 +115,7 @@
         const ctx = platno.getContext('2d');
         const velikostBunky = 20;
         const pocetBunek = 20;
-
+        const startBtn = document.getElementById('startBtn');
         let had, jidlo, smer, dalsiSmer, skore, interval, hraSkoncila;
 
         function start() {
@@ -238,6 +239,11 @@
                     if (smer.x !== -1) dalsiSmer = { x: 1, y: 0 }; break;
             }
             e.preventDefault();
+            startBtn.addEventListener('click', () => {
+  overlay.style.display = 'none';
+  finalStats.classList.add('hidden');
+  initGame();
+  loop();
         });
 
         start();
