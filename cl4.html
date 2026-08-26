@@ -53,6 +53,21 @@
         }
         #start-btn { top: 380px; }
         #restart-btn { top: 400px; display: none; }
+         button:hover {
+            background: #00ff88;
+            color: #0a0a0a;
+        }
+
+         a {
+            color: #555;
+            text-decoration: none;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            margin-top: 15px;
+            transition: color 0.2s;
+        }
+
+        a:hover { color: #00ff88; }
     </style>
 </head>
 <body>
@@ -67,6 +82,7 @@
     <button id="start-btn" class="btn-game" onclick="startGame()">SPUSTIT HRU</button>
     <button id="restart-btn" class="btn-game" onclick="resetGame()">HRÁT ZNOVU</button>
     <canvas id="canvas" width="800" height="600"></canvas>
+      <button onclick="window.location='index.html'">MENU</button>
 </div>
 
 <script>
