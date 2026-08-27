@@ -7,15 +7,150 @@
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
+        html, body {
+            height: 100%;
+        }
+
         body {
-            background: #0a0a0a;
+            background: linear-gradient(180deg, #040910 0%, #071a1c 38%, #0a2420 50%, #061512 62%, #030805 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             font-family: 'Courier New', monospace;
             color: #fff;
+            position: relative;
+            overflow: hidden;
+        }
+
+        /* ---------- SCÉNA V POZADÍ ---------- */
+
+        .scene {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+
+        .mesic {
+            position: absolute;
+            top: 8%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 38% 35%, #f4f9e8 0%, #d9e9c9 45%, #b9d3a8 100%);
+            box-shadow:
+                0 0 40px 10px rgba(220, 240, 200, 0.35),
+                0 0 120px 60px rgba(150, 200, 160, 0.12);
+        }
+
+        #hvezdy, #castice {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .reka-wrap {
+            position: absolute;
+            top: 46%;
+            left: 0;
+            width: 100%;
+            height: 14%;
+            overflow: hidden;
+        }
+
+        .reka {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg,
+                rgba(6, 30, 28, 0.2) 0%,
+                rgba(10, 45, 45, 0.75) 25%,
+                rgba(7, 35, 34, 0.9) 60%,
+                rgba(4, 20, 18, 0.95) 100%);
+        }
+
+        .odlesk {
+            position: absolute;
+            top: 0;
+            left: 50%;
+            width: 10%;
+            height: 100%;
+            transform: translateX(-50%);
+            background: linear-gradient(180deg, rgba(230,245,210,0.55), rgba(230,245,210,0.05));
+            filter: blur(6px);
+            animation: mihotani 3.5s ease-in-out infinite alternate;
+        }
+
+        @keyframes mihotani {
+            0%   { opacity: 0.5; width: 8%; }
+            100% { opacity: 0.9; width: 13%; }
+        }
+
+        .mlha {
+            position: absolute;
+            bottom: 0;
+            width: 60%;
+            height: 60px;
+            background: radial-gradient(ellipse at center, rgba(190,220,200,0.16), rgba(190,220,200,0) 70%);
+            filter: blur(4px);
+            animation: driftMlha 22s linear infinite;
+        }
+        .mlha.m1 { top: 44%; left: -20%; animation-duration: 26s; }
+        .mlha.m2 { top: 50%; left: -30%; animation-duration: 34s; animation-delay: -10s; }
+        .mlha.m3 { top: 56%; left: -25%; animation-duration: 30s; animation-delay: -18s; }
+
+        @keyframes driftMlha {
+            0%   { transform: translateX(0); }
+            100% { transform: translateX(160vw); }
+        }
+
+        .stromy {
+            position: absolute;
+            left: 0;
+            width: 100%;
+        }
+        .stromy-horni { top: -40px; }
+        .stromy-dolni { bottom: -40px; transform: scaleY(-1); }
+
+        .liany {
+            position: absolute;
+            top: -10px;
+            width: 100%;
+        }
+
+        .liana {
+            position: absolute;
+            top: 0;
+            transform-origin: top center;
+            animation: houpani 6s ease-in-out infinite;
+        }
+        .liana:nth-child(2n) { animation-duration: 7.5s; animation-delay: -2s; }
+        .liana:nth-child(3n) { animation-duration: 5s; animation-delay: -1s; }
+
+        @keyframes houpani {
+            0%, 100% { transform: rotate(-2.5deg); }
+            50%      { transform: rotate(2.5deg); }
+        }
+
+        /* ---------- OBSAH ---------- */
+
+        .obsah {
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 50px;
+            background: rgba(3, 10, 8, 0.45);
+            border: 1px solid rgba(0, 255, 136, 0.15);
+            border-radius: 10px;
+            backdrop-filter: blur(3px);
+            box-shadow: 0 0 60px rgba(0, 0, 0, 0.4);
         }
 
         h1 {
@@ -24,10 +159,11 @@
             color: #00ff88;
             margin-bottom: 10px;
             text-transform: uppercase;
+            text-shadow: 0 0 20px #00ff8855;
         }
 
         p {
-            color: #555;
+            color: #7a8a80;
             letter-spacing: 4px;
             margin-bottom: 50px;
             font-size: 0.85rem;
@@ -43,18 +179,20 @@
             display: flex;
             align-items: center;
             gap: 20px;
-            border: 1px solid #222;
+            border: 1px solid #223026;
             padding: 20px 30px;
             text-decoration: none;
             color: #fff;
             transition: all 0.2s;
             position: relative;
             overflow: hidden;
+            background: rgba(5, 14, 10, 0.4);
         }
 
         .hra:hover {
             border-color: #00ff88;
             box-shadow: 0 0 20px #00ff8822;
+            background: rgba(5, 20, 14, 0.6);
         }
 
         .hra:hover .ikona {
@@ -74,14 +212,14 @@
 
         .popis {
             font-size: 0.75rem;
-            color: #555;
+            color: #6b7a70;
             letter-spacing: 2px;
             margin-top: 4px;
         }
 
         .sipka {
             margin-left: auto;
-            color: #333;
+            color: #33443a;
             font-size: 1.2rem;
             transition: all 0.2s;
         }
@@ -94,74 +232,216 @@
 </head>
 <body>
 
-    <h1>HRÁČ</h1>
-    <p>VYBER HRU</p>
+    <div class="scene">
+        <div class="mesic"></div>
+        <canvas id="hvezdy"></canvas>
 
-    <div class="hry">
-        <a href="had.html" class="hra">
-            <div class="ikona">🐍</div>
-            <div>
-                <div class="nazev">Had</div>
-                <div class="popis">Klasická hra — sněz jídlo, nevraz do zdi</div>
-            </div>
-            <div class="sipka">→</div>
-        </a>
+        <svg class="stromy stromy-horni" viewBox="0 0 1600 220" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#020705" opacity="0.9" d="M0,0 L0,90 C60,60 90,140 150,100 C190,75 230,150 280,110 C330,80 360,160 420,120 C470,90 500,150 560,105 C610,75 650,145 710,100 C760,70 800,150 860,110 C910,80 950,150 1010,105 C1060,75 1100,150 1160,110 C1210,80 1250,150 1310,100 C1360,70 1400,140 1460,105 C1510,80 1550,140 1600,95 L1600,0 Z"/>
+            <path fill="#04120c" opacity="0.85" d="M0,0 L0,60 C80,40 120,90 190,65 C250,45 300,95 360,70 C420,45 470,95 540,65 C600,42 650,90 720,62 C780,40 830,90 900,65 C960,42 1010,90 1080,62 C1140,40 1190,88 1260,60 C1320,38 1370,86 1440,60 C1500,38 1550,80 1600,55 L1600,0 Z"/>
+        </svg>
 
-        <a href="pong.html" class="hra">
-            <div class="ikona">🏓</div>
-            <div>
-                <div class="nazev">Pong</div>
-                <div class="popis">Hraj proti počítači — první na 7 bodů vyhrává</div>
-            </div>
-            <div class="sipka">→</div>
-        </a>
+        <div class="liany">
+            <svg width="100%" height="240" viewBox="0 0 1600 240" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" style="position:absolute; top:0;">
+                <g stroke="#0a1c12" stroke-width="3" fill="none" opacity="0.8">
+                    <path d="M120,0 C110,60 140,110 100,180" />
+                    <path d="M340,0 C355,70 320,130 350,210" />
+                    <path d="M980,0 C965,50 1000,120 970,190" />
+                    <path d="M1260,0 C1275,60 1240,110 1265,200" />
+                    <path d="M1480,0 C1465,55 1500,115 1470,195" />
+                </g>
+                <g fill="#0f2b1a" opacity="0.9">
+                    <ellipse cx="103" cy="70" rx="7" ry="11" transform="rotate(20 103 70)"/>
+                    <ellipse cx="95" cy="130" rx="7" ry="11" transform="rotate(-15 95 130)"/>
+                    <ellipse cx="353" cy="85" rx="7" ry="11" transform="rotate(-20 353 85)"/>
+                    <ellipse cx="330" cy="150" rx="7" ry="11" transform="rotate(15 330 150)"/>
+                    <ellipse cx="975" cy="65" rx="6" ry="10" transform="rotate(15 975 65)"/>
+                    <ellipse cx="990" cy="140" rx="6" ry="10" transform="rotate(-10 990 140)"/>
+                    <ellipse cx="1268" cy="75" rx="6" ry="10" transform="rotate(-15 1268 75)"/>
+                    <ellipse cx="1250" cy="145" rx="6" ry="10" transform="rotate(10 1250 145)"/>
+                    <ellipse cx="1472" cy="70" rx="6" ry="10" transform="rotate(15 1472 70)"/>
+                </g>
+            </svg>
+        </div>
 
-        <a href="breakout.html" class="hra">
-    <div class="ikona">🧱</div>
-    <div>
-        <div class="nazev">Breakout</div>
-        <div class="popis">Znič všechny cihly — přibývají levely</div>
+        <div class="reka-wrap">
+            <div class="reka"></div>
+            <div class="odlesk"></div>
+        </div>
+
+        <div class="mlha m1"></div>
+        <div class="mlha m2"></div>
+        <div class="mlha m3"></div>
+
+        <svg class="stromy stromy-dolni" viewBox="0 0 1600 220" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+            <path fill="#020705" opacity="0.95" d="M0,0 L0,100 C70,65 100,150 170,105 C220,75 260,155 320,110 C370,80 410,160 470,115 C520,85 560,155 620,105 C670,75 710,150 770,110 C820,80 860,155 920,110 C970,80 1010,150 1070,105 C1120,75 1160,150 1220,110 C1270,80 1310,155 1370,100 C1420,70 1460,145 1520,110 C1560,85 1580,140 1600,100 L1600,0 Z"/>
+        </svg>
+
+        <canvas id="castice"></canvas>
     </div>
-    <div class="sipka">→</div>
-</a>
-        
-        <a href="videa.html" class="hra">
-    <div class="ikona">🎬</div>
-    <div>
-        <div class="nazev">Videa</div>
-        <div class="popis">Vought International — výběr videí</div>
-    </div>
-    <div class="sipka">→</div>
-</a>
-        <a href="vidmoly.html" class="hra">
-    <div class="ikona">🎥</div>
-    <div>
-        <div class="nazev">Vidmoly</div>
-        <div class="popis">Videa z Vidmoly</div>
-    </div>
-    <div class="sipka">→</div>
-</a>
-         <a href="space-shooter.html" class="hra">
-            <div class="ikona">🔫</div>
-            <div>
-                <div class="nazev">space-shooter</div>
-                <div class="popis">střílej nebo zemři</div>
-            </div>
-            <div class="sipka">→</div>
-        </a>
-             <a href="cl4.html" class="hra">
-            <div class="ikona">⛰️</div>
-            <div>
-                <div class="nazev">dont die</div>
-                <div class="popis">střílej nebo zemři</div>
-            </div>
-            <div class="sipka">→</div>
-        </a>
 
+    <div class="obsah">
+        <h1>HRÁČ</h1>
+        <p>VYBER HRU</p>
 
-        
-        
+        <div class="hry">
+            <a href="had.html" class="hra">
+                <div class="ikona">🐍</div>
+                <div>
+                    <div class="nazev">Had</div>
+                    <div class="popis">Klasická hra — sněz jídlo, nevraz do zdi</div>
+                </div>
+                <div class="sipka">→</div>
+            </a>
+
+            <a href="pong.html" class="hra">
+                <div class="ikona">🏓</div>
+                <div>
+                    <div class="nazev">Pong</div>
+                    <div class="popis">Hraj proti počítači — první na 7 bodů vyhrává</div>
+                </div>
+                <div class="sipka">→</div>
+            </a>
+
+            <a href="breakout.html" class="hra">
+                <div class="ikona">🧱</div>
+                <div>
+                    <div class="nazev">Breakout</div>
+                    <div class="popis">Znič všechny cihly — přibývají levely</div>
+                </div>
+                <div class="sipka">→</div>
+            </a>
+
+            <a href="videa.html" class="hra">
+                <div class="ikona">🎬</div>
+                <div>
+                    <div class="nazev">Videa</div>
+                    <div class="popis">Vought International — výběr videí</div>
+                </div>
+                <div class="sipka">→</div>
+            </a>
+
+            <a href="vidmoly.html" class="hra">
+                <div class="ikona">🎥</div>
+                <div>
+                    <div class="nazev">Vidmoly</div>
+                    <div class="popis">Videa z Vidmoly</div>
+                </div>
+                <div class="sipka">→</div>
+            </a>
+
+            <a href="space-shooter.html" class="hra">
+                <div class="ikona">🔫</div>
+                <div>
+                    <div class="nazev">space-shooter</div>
+                    <div class="popis">střílej nebo zemři</div>
+                </div>
+                <div class="sipka">→</div>
+            </a>
+
+            <a href="cl4.html" class="hra">
+                <div class="ikona">⛰️</div>
+                <div>
+                    <div class="nazev">dont die</div>
+                    <div class="popis">střílej nebo zemři</div>
+                </div>
+                <div class="sipka">→</div>
+            </a>
+        </div>
     </div>
+
+    <script>
+        function nastavPlatno(id) {
+            const c = document.getElementById(id);
+            const dpr = window.devicePixelRatio || 1;
+            c.width = window.innerWidth * dpr;
+            c.height = window.innerHeight * dpr;
+            c.style.width = window.innerWidth + 'px';
+            c.style.height = window.innerHeight + 'px';
+            const ctx = c.getContext('2d');
+            ctx.scale(dpr, dpr);
+            return ctx;
+        }
+
+        let ctxHvezdy = nastavPlatno('hvezdy');
+        let ctxCastice = nastavPlatno('castice');
+
+        // Hvězdy - statické s náhodným mihotáním
+        const pocetHvezd = 140;
+        const hvezdy = Array.from({ length: pocetHvezd }, () => ({
+            x: Math.random() * window.innerWidth,
+            y: Math.random() * window.innerHeight * 0.5,
+            r: Math.random() * 1.2 + 0.3,
+            faze: Math.random() * Math.PI * 2,
+            rychlost: Math.random() * 0.02 + 0.01
+        }));
+
+        // Svatojánské mušky - létají pomalu nad bažinou
+        const pocetMusek = 26;
+        const musky = Array.from({ length: pocetMusek }, () => vytvorMusku());
+
+        function vytvorMusku() {
+            return {
+                x: Math.random() * window.innerWidth,
+                y: window.innerHeight * (0.35 + Math.random() * 0.55),
+                r: Math.random() * 1.6 + 1,
+                uhel: Math.random() * Math.PI * 2,
+                rychlost: Math.random() * 0.4 + 0.15,
+                faze: Math.random() * Math.PI * 2,
+                mihani: Math.random() * 0.02 + 0.015
+            };
+        }
+
+        let t = 0;
+
+        function kreslit() {
+            t += 1;
+
+            ctxHvezdy.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            hvezdy.forEach(h => {
+                const jas = 0.4 + 0.6 * Math.abs(Math.sin(h.faze + t * h.rychlost));
+                ctxHvezdy.fillStyle = `rgba(230,240,255,${jas})`;
+                ctxHvezdy.beginPath();
+                ctxHvezdy.arc(h.x, h.y, h.r, 0, Math.PI * 2);
+                ctxHvezdy.fill();
+            });
+
+            ctxCastice.clearRect(0, 0, window.innerWidth, window.innerHeight);
+            musky.forEach(m => {
+                m.uhel += (Math.random() - 0.5) * 0.15;
+                m.x += Math.cos(m.uhel) * m.rychlost;
+                m.y += Math.sin(m.uhel) * m.rychlost * 0.6;
+
+                if (m.x < -10) m.x = window.innerWidth + 10;
+                if (m.x > window.innerWidth + 10) m.x = -10;
+                if (m.y < window.innerHeight * 0.3) m.y = window.innerHeight * 0.3;
+                if (m.y > window.innerHeight * 0.95) m.y = window.innerHeight * 0.95;
+
+                const svit = 0.3 + 0.7 * Math.abs(Math.sin(m.faze + t * m.mihani));
+                const grad = ctxCastice.createRadialGradient(m.x, m.y, 0, m.x, m.y, m.r * 6);
+                grad.addColorStop(0, `rgba(200,255,150,${svit})`);
+                grad.addColorStop(1, 'rgba(200,255,150,0)');
+                ctxCastice.fillStyle = grad;
+                ctxCastice.beginPath();
+                ctxCastice.arc(m.x, m.y, m.r * 6, 0, Math.PI * 2);
+                ctxCastice.fill();
+
+                ctxCastice.fillStyle = `rgba(230,255,200,${svit})`;
+                ctxCastice.beginPath();
+                ctxCastice.arc(m.x, m.y, m.r, 0, Math.PI * 2);
+                ctxCastice.fill();
+            });
+
+            requestAnimationFrame(kreslit);
+        }
+
+        kreslit();
+
+        window.addEventListener('resize', () => {
+            ctxHvezdy = nastavPlatno('hvezdy');
+            ctxCastice = nastavPlatno('castice');
+        });
+    </script>
 
 </body>
 </html>
