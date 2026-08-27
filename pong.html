@@ -8,7 +8,7 @@
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            background: #0a0a0a;
+            background: radial-gradient(circle at 50% 15%, #10241c 0%, #060a08 55%, #030403 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -16,6 +16,7 @@
             height: 100vh;
             font-family: 'Courier New', monospace;
             color: #fff;
+            overflow: hidden;
         }
 
         h1 {
@@ -23,18 +24,26 @@
             letter-spacing: 8px;
             color: #00ff88;
             margin-bottom: 10px;
+            text-shadow: 0 0 20px #00ff8866;
         }
 
         #skore {
-            font-size: 1rem;
+            font-size: 1.4rem;
             color: #888;
             margin-bottom: 20px;
-            letter-spacing: 6px;
+            letter-spacing: 10px;
         }
+
+        #skore #hrac { color: #00ff88; text-shadow: 0 0 12px #00ff8888; }
+        #skore #pc { color: #ff4444; text-shadow: 0 0 12px #ff444488; }
+
+        #wrap { position: relative; }
 
         #platno {
             border: 2px solid #00ff88;
-            box-shadow: 0 0 30px #00ff8844;
+            border-radius: 6px;
+            box-shadow: 0 0 40px #00ff8833, inset 0 0 60px #00110a;
+            display: block;
         }
 
         #info {
@@ -44,23 +53,31 @@
             letter-spacing: 2px;
         }
 
-        #game-over {
-            display: none;
+        #start-screen, #game-over {
+            display: flex;
             position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
             flex-direction: column;
             align-items: center;
+            justify-content: center;
             gap: 15px;
+            background: #050807ee;
+            border-radius: 6px;
         }
+
+        #game-over { display: none; }
+
+        #start-screen p { color: #666; letter-spacing: 2px; font-size: 0.8rem; text-align: center; padding: 0 20px; }
 
         #game-over h2 {
             font-size: 2rem;
-            color: #00ff88;
             letter-spacing: 6px;
         }
 
         #game-over p {
             color: #888;
             letter-spacing: 3px;
+            font-size: 1.4rem;
         }
 
         button {
@@ -74,11 +91,13 @@
             cursor: pointer;
             transition: all 0.2s;
             margin: 5px;
+            border-radius: 4px;
         }
 
         button:hover {
             background: #00ff88;
             color: #0a0a0a;
+            box-shadow: 0 0 15px #00ff8888;
         }
 
         a {
@@ -99,16 +118,24 @@
     <div id="skore">
         <span id="hrac">0</span> : <span id="pc">0</span>
     </div>
-    <canvas id="platno" width="500" height="350"></canvas>
-    <div id="info">W / S nebo ŠIPKY pro ovládání | první na 7 bodů vyhrává</div>
-    <a href="index.html">← ZPĚT DO MENU</a>
 
-    <div id="game-over">
-        <h2 id="vitez">VYHRÁL JSI!</h2>
-        <p id="vysledek"></p>
-        <button onclick="restart()">HRÁT ZNOVU</button>
-        <button onclick="window.location='index.html'">MENU</button>
+    <div id="wrap">
+        <canvas id="platno" width="500" height="350"></canvas>
+
+        <div id="start-screen">
+            <p>W / S nebo ŠIPKY pro ovládání<br>první na 7 bodů vyhrává</p>
+            <button id="startBtn">SPUSTIT HRU</button>
+        </div>
+
+        <div id="game-over">
+            <h2 id="vitez">VYHRÁL JSI!</h2>
+            <p id="vysledek"></p>
+            <button onclick="restart()">HRÁT ZNOVU</button>
+            <button onclick="window.location='index.html'">MENU</button>
+        </div>
     </div>
+
+    <a href="index.html">← ZPĚT DO MENU</a>
 
     <script>
         const platno = document.getElementById('platno');
@@ -118,22 +145,31 @@
         const H = platno.height;
         const PALKA_V = 70;
         const PALKA_S = 10;
-        const MICK_V = 10;
+        const MICK_R = 6;
         const MAX_SKORE = 7;
-        const RYCHLOST_PC = 3.5;
+        const RYCHLOST_PC = 4.2;
+
+        const startBtn = document.getElementById('startBtn');
+        const startScreen = document.getElementById('start-screen');
+        const gameOverScreen = document.getElementById('game-over');
 
         let hrac, poc, mic, skoreHrac, skorePc, hraSkoncila, animFrame;
+        let pcCil = H / 2;       // bod, kam se PC snaží trefit (s chybou)
+        let stopa = [];          // stopa za míčkem
 
         function start() {
             hrac = { x: 10, y: H/2 - PALKA_V/2, dy: 0 };
             poc = { x: W - 10 - PALKA_S, y: H/2 - PALKA_V/2 };
-            mic = { x: W/2, y: H/2, dx: 4, dy: 3 };
             skoreHrac = 0;
             skorePc = 0;
             hraSkoncila = false;
+            stopa = [];
+            pcCil = H / 2;
             document.getElementById('hrac').textContent = 0;
             document.getElementById('pc').textContent = 0;
-            document.getElementById('game-over').style.display = 'none';
+            startScreen.style.display = 'none';
+            gameOverScreen.style.display = 'none';
+            resetMic(Math.random() < 0.5 ? 1 : -1);
             if (animFrame) cancelAnimationFrame(animFrame);
             loop();
         }
@@ -149,51 +185,60 @@
             hrac.y += hrac.dy;
             hrac.y = Math.max(0, Math.min(H - PALKA_V, hrac.y));
 
-            // PC AI
-            const stred = poc.y + PALKA_V / 2;
-            if (stred < mic.y - 5) poc.y += RYCHLOST_PC;
-            else if (stred > mic.y + 5) poc.y -= RYCHLOST_PC;
+            // PC AI - sleduje míček jen s určitou nedokonalostí, aby to nebylo
+            // dokonalé (a aby se odrazy nezplošťovaly do jedné vodorovné čáry)
+            if (mic.dx > 0) {
+                // míček letí k PC - občas si "přepočítá" cíl s malou chybou
+                if (Math.random() < 0.05) {
+                    pcCil = mic.y + (Math.random() - 0.5) * PALKA_V * 0.8;
+                }
+            } else {
+                // míček letí pryč - PC se vrací doprostřed
+                pcCil = H / 2;
+            }
+            const stredPc = poc.y + PALKA_V / 2;
+            if (stredPc < pcCil - 4) poc.y += RYCHLOST_PC;
+            else if (stredPc > pcCil + 4) poc.y -= RYCHLOST_PC;
             poc.y = Math.max(0, Math.min(H - PALKA_V, poc.y));
 
             // Míček
             mic.x += mic.dx;
             mic.y += mic.dy;
 
+            stopa.push({ x: mic.x, y: mic.y });
+            if (stopa.length > 10) stopa.shift();
+
             // Odraz od stropu/podlahy
-            if (mic.y <= 0 || mic.y >= H - MICK_V) mic.dy *= -1;
+            if (mic.y - MICK_R <= 0 || mic.y + MICK_R >= H) mic.dy *= -1;
 
             // Odraz od hráče
-            if (mic.x <= hrac.x + PALKA_S &&
-                mic.y + MICK_V >= hrac.y &&
-                mic.y <= hrac.y + PALKA_V &&
+            if (mic.x - MICK_R <= hrac.x + PALKA_S &&
+                mic.y + MICK_R >= hrac.y &&
+                mic.y - MICK_R <= hrac.y + PALKA_V &&
                 mic.dx < 0) {
-                mic.dx *= -1.05;
-                const dopad = (mic.y + MICK_V/2 - (hrac.y + PALKA_V/2)) / (PALKA_V/2);
-                mic.dy = dopad * 5;
+                odraz(hrac);
             }
 
             // Odraz od PC
-            if (mic.x + MICK_V >= poc.x &&
-                mic.y + MICK_V >= poc.y &&
-                mic.y <= poc.y + PALKA_V &&
+            if (mic.x + MICK_R >= poc.x &&
+                mic.y + MICK_R >= poc.y &&
+                mic.y - MICK_R <= poc.y + PALKA_V &&
                 mic.dx > 0) {
-                mic.dx *= -1.05;
-                const dopad = (mic.y + MICK_V/2 - (poc.y + PALKA_V/2)) / (PALKA_V/2);
-                mic.dy = dopad * 5;
+                odraz(poc);
             }
 
             // Omezení rychlosti
-            mic.dx = Math.max(-10, Math.min(10, mic.dx));
+            mic.dx = Math.max(-11, Math.min(11, mic.dx));
             mic.dy = Math.max(-8, Math.min(8, mic.dy));
 
             // Bod
-            if (mic.x < 0) {
+            if (mic.x < -20) {
                 skorePc++;
                 document.getElementById('pc').textContent = skorePc;
                 if (skorePc >= MAX_SKORE) { konec(false); return; }
                 resetMic(1);
             }
-            if (mic.x > W) {
+            if (mic.x > W + 20) {
                 skoreHrac++;
                 document.getElementById('hrac').textContent = skoreHrac;
                 if (skoreHrac >= MAX_SKORE) { konec(true); return; }
@@ -201,17 +246,50 @@
             }
         }
 
+        function odraz(palka) {
+            // Kam míček dopadl vůči středu pálky, v rozsahu -1 až 1
+            let dopad = (mic.y - (palka.y + PALKA_V / 2)) / (PALKA_V / 2);
+            dopad = Math.max(-1, Math.min(1, dopad));
+
+            // Zabráníme "zploštění" - pokud by úhel vyšel skoro nulový,
+            // dorovnáme ho na minimální hodnotu (proto se dřív míček zasekával
+            // v rovné vodorovné dráze)
+            const znamenko = dopad === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(dopad);
+            if (Math.abs(dopad) < 0.18) dopad = znamenko * 0.18;
+
+            const rychlost = Math.min(11, Math.hypot(mic.dx, mic.dy) * 1.06 + 0.15);
+            const smer = mic.dx < 0 ? 1 : -1; // odraz opačným směrem
+
+            const uhel = dopad * (Math.PI / 3); // max ±60°
+            mic.dx = smer * rychlost * Math.cos(uhel);
+            mic.dy = rychlost * Math.sin(uhel) + (Math.random() - 0.5) * 0.6;
+
+            // vystrčíme míček mimo pálku, ať se nezasekne uvnitř
+            mic.x = smer > 0 ? palka.x + PALKA_S + MICK_R + 1 : palka.x - MICK_R - 1;
+        }
+
         function resetMic(smer) {
-            mic = { x: W/2, y: H/2, dx: 4 * smer, dy: (Math.random() - 0.5) * 4 };
+            const uhel = (Math.random() - 0.5) * (Math.PI / 3);
+            mic = {
+                x: W / 2,
+                y: H / 2,
+                dx: smer * 4.5 * Math.cos(uhel),
+                dy: 4.5 * Math.sin(uhel) || (Math.random() - 0.5) * 2
+            };
+            stopa = [];
         }
 
         function kreslit() {
-            ctx.fillStyle = '#0a0a0a';
+            // Pozadí s jemným gradientem
+            const grad = ctx.createRadialGradient(W/2, H/2, 20, W/2, H/2, 400);
+            grad.addColorStop(0, '#0d1a13');
+            grad.addColorStop(1, '#050805');
+            ctx.fillStyle = grad;
             ctx.fillRect(0, 0, W, H);
 
             // Střední čára
-            ctx.setLineDash([5, 10]);
-            ctx.strokeStyle = '#222';
+            ctx.setLineDash([6, 10]);
+            ctx.strokeStyle = 'rgba(0, 255, 136, 0.18)';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(W/2, 0);
@@ -219,23 +297,38 @@
             ctx.stroke();
             ctx.setLineDash([]);
 
+            // Stopa míčku
+            stopa.forEach((bod, i) => {
+                const pruhlednost = (i / stopa.length) * 0.25;
+                ctx.fillStyle = `rgba(255,255,255,${pruhlednost})`;
+                ctx.beginPath();
+                ctx.arc(bod.x, bod.y, MICK_R * (i / stopa.length), 0, Math.PI * 2);
+                ctx.fill();
+            });
+
             // Hráč
             ctx.fillStyle = '#00ff88';
             ctx.shadowColor = '#00ff88';
             ctx.shadowBlur = 15;
-            ctx.fillRect(hrac.x, hrac.y, PALKA_S, PALKA_V);
+            ctx.beginPath();
+            ctx.roundRect(hrac.x, hrac.y, PALKA_S, PALKA_V, 4);
+            ctx.fill();
 
             // PC
             ctx.fillStyle = '#ff4444';
             ctx.shadowColor = '#ff4444';
-            ctx.fillRect(poc.x, poc.y, PALKA_S, PALKA_V);
+            ctx.beginPath();
+            ctx.roundRect(poc.x, poc.y, PALKA_S, PALKA_V, 4);
+            ctx.fill();
             ctx.shadowBlur = 0;
 
             // Míček
             ctx.fillStyle = '#ffffff';
             ctx.shadowColor = '#ffffff';
-            ctx.shadowBlur = 10;
-            ctx.fillRect(mic.x, mic.y, MICK_V, MICK_V);
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(mic.x, mic.y, MICK_R, 0, Math.PI * 2);
+            ctx.fill();
             ctx.shadowBlur = 0;
         }
 
@@ -244,7 +337,7 @@
             document.getElementById('vitez').textContent = vyhral ? 'VYHRÁL JSI! 🎉' : 'PROHRÁL JSI';
             document.getElementById('vitez').style.color = vyhral ? '#00ff88' : '#ff4444';
             document.getElementById('vysledek').textContent = `${skoreHrac} : ${skorePc}`;
-            document.getElementById('game-over').style.display = 'flex';
+            gameOverScreen.style.display = 'flex';
         }
 
         function restart() { start(); }
@@ -259,8 +352,15 @@
             if (['ArrowUp','ArrowDown','w','W','s','S'].includes(e.key)) hrac.dy = 0;
         });
 
-        start();
+        startBtn.addEventListener('click', start);
+
+        // Klidový náhled na pozadí, dokud hra nezačne
+        hrac = { x: 10, y: H/2 - PALKA_V/2, dy: 0 };
+        poc = { x: W - 10 - PALKA_S, y: H/2 - PALKA_V/2 };
+        mic = { x: W/2, y: H/2, dx: 0, dy: 0 };
+        kreslit();
     </script>
 
 </body>
 </html>
+
